@@ -7,5 +7,6 @@ export default defineConfig({
   external: ["react", "frontend-monitor-core"],
   format: ["esm"],
   sourcemap: true,
+  minify: true,
   target: "es2022"
 })

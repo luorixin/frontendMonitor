@@ -7,5 +7,6 @@ export default defineConfig({
   external: ["vue", "frontend-monitor-core"],
   format: ["esm"],
   sourcemap: true,
+  minify: true,
   target: "es2022"
 })

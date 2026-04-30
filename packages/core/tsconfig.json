@@ -3,5 +3,5 @@
   "compilerOptions": {
     "rootDir": "src"
   },
-  "include": ["src", "vitest.config.ts", "tsup.config.ts"]
+  "include": ["src"]
 }

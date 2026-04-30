@@ -13,5 +13,6 @@ export default defineConfig({
   ],
   format: ["esm"],
   sourcemap: true,
+  minify: true,
   target: "es2022"
 })
