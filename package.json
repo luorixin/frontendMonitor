@@ -1,0 +1,27 @@
+{
+  "name": "frontend-monitor",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel --filter @frontend-monitor/mock-server --filter @frontend-monitor/demo dev",
+    "dev:demo": "pnpm --filter @frontend-monitor/demo dev",
+    "dev:mock": "pnpm --filter @frontend-monitor/mock-server dev",
+    "test": "pnpm --filter @frontend-monitor/core test"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "last_turn_at": "2026-04-30T02:20:11.570Z",
+  "turn_count": 1,
+  "last_progress_at": "2026-04-30T02:20:11.570Z",
+  "last_agent_output": "我把 CORS 问题按“开发时彻底避免跨域”的方式修掉了。\n\n现在 demo 不再直接请求 `http://localhost:4318`，而是走同源路径 `/monitor-api/*`，由 Vit"
+}
