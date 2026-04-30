@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { captureError, getOptions, track } from "@frontend-monitor/core"
+import { captureError, getOptions, track } from "frontend-monitor-core"
 import { ref } from "vue"
 
 const count = ref(0)
@@ -36,7 +36,7 @@ function bumpCount(): void {
       <p class="eyebrow">Nuxt 3 Adapter</p>
       <h1>frontend-monitor Nuxt 3 example</h1>
       <p class="lede">
-        这个示例演示 `@frontend-monitor/nuxt3` module 如何在 Nuxt client plugin 里自动接入。
+        这个示例演示 `frontend-monitor-nuxt3` module 如何在 Nuxt client plugin 里自动接入。
       </p>
     </section>
 

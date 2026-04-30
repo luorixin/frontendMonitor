@@ -1,5 +1,5 @@
 import { createApp } from "vue"
-import WebTracingPlugin from "@frontend-monitor/vue3"
+import WebTracingPlugin from "frontend-monitor-vue3"
 import App from "./App.vue"
 import "./style.css"
 

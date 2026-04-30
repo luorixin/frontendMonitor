@@ -7,11 +7,11 @@ vi.mock("#app", () => ({
   defineNuxtPlugin: defineNuxtPluginMock
 }))
 
-vi.mock("@frontend-monitor/vue3", () => ({
+vi.mock("frontend-monitor-vue3", () => ({
   default: "WebTracingPlugin"
 }))
 
-describe("@frontend-monitor/nuxt3 runtime plugin", () => {
+describe("frontend-monitor-nuxt3 runtime plugin", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

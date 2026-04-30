@@ -7,7 +7,7 @@ import {
   getOptions,
   track,
   useWebTracing
-} from "@frontend-monitor/react"
+} from "frontend-monitor-react"
 import "./style.css"
 
 function Dashboard() {

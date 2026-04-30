@@ -5,7 +5,7 @@ const initMock = vi.fn()
 const captureErrorMock = vi.fn()
 const useEffectMock = vi.fn()
 
-vi.mock("@frontend-monitor/core", () => ({
+vi.mock("frontend-monitor-core", () => ({
   captureError: captureErrorMock,
   destroy: destroyMock,
   flush: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock("react", () => {
   }
 })
 
-describe("@frontend-monitor/react", () => {
+describe("frontend-monitor-react", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

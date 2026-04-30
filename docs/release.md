@@ -1,6 +1,6 @@
 # 发布流程
 
-本文档描述 `@frontend-monitor/core`、`@frontend-monitor/vue3`、`@frontend-monitor/react`、`@frontend-monitor/nuxt3` 的版本管理与自动发布流程。
+本文档描述 `frontend-monitor-core`、`frontend-monitor-vue3`、`frontend-monitor-react`、`frontend-monitor-nuxt3` 的版本管理与自动发布流程。
 
 ## 1. 本地开发时添加 changeset
 
@@ -47,12 +47,77 @@ pnpm test
 
 发布工作流使用 GitHub Actions 的 trusted publishing，不依赖长期存在的 `NPM_TOKEN`。
 
+这里有一个重要边界：
+
+- GitHub Actions 里的 `release.yml` 可以直接发布，不需要你额外执行 `npm login`
+- 本地机器上的 `changeset publish` 仍然属于普通 npm publish，依然需要 `npm login` 或 `NPM_TOKEN`
+
+如果你在本地执行发布命令看到 `npm error code E401`，通常就是因为当前终端没有 npm 发布凭据；这不是 Changesets 配置错误，而是 trusted publishing 只对 GitHub Actions 生效。
+
+官方要求里还有两个容易忽略的前提：
+
+- trusted publishing 依赖 OIDC，只支持 GitHub-hosted runners，不支持 self-hosted runners。
+- npm 官方文档要求 npm CLI `11.5.1+` 和 Node `22.14.0+`。
+
+参考：
+
+- npm Trusted Publishers: https://docs.npmjs.com/trusted-publishers/
+- Changesets Action: https://github.com/changesets/action
+
 需要在 npm 后台为每个包配置 trusted publisher，仓库信息应与当前仓库保持一致：
 
 - Owner: `luorixin`
 - Repository: `frontendMonitor`
 - Workflow: `release.yml`
 - Branch: `master`
+
+### 4.1 后台逐项填写说明
+
+需要对下面 4 个包分别配置一次：
+
+- `frontend-monitor-core`
+- `frontend-monitor-vue3`
+- `frontend-monitor-react`
+- `frontend-monitor-nuxt3`
+
+每个包在 npm 后台的配置路径是：
+
+`npmjs.com -> Packages -> 对应包 -> Settings -> Trusted publishing`
+
+选择 `GitHub Actions` 后，字段这样填：
+
+- `Organization or user`: `luorixin`
+- `Repository`: `frontendMonitor`
+- `Workflow filename`: `release.yml`
+  只填文件名，不要填 `.github/workflows/release.yml`
+- `Environment name`: 留空
+  只有你真的在 GitHub Actions 里启用了 environment protection 时才需要填
+
+### 4.2 配好之后怎么验证
+
+建议按这个顺序验证：
+
+1. 在任意一个包页面确认 Trusted publisher 已保存成功。
+2. 确认仓库中的 workflow 文件名确实是 `.github/workflows/release.yml`。
+3. 确认 workflow 已包含 `permissions.id-token: write`。
+4. 提交一个 changeset 并合并到 `master`。
+5. 观察 `release.yml`：
+   第一次通常会创建或更新 release PR。
+6. 合并 release PR 后再次观察 `release.yml`：
+   这一次才会进入真正的 publish 分支。
+7. 发布成功后，到 npm 包页面确认新版本已经出现。
+
+### 4.3 推荐的安全收口
+
+npm 官方建议在 trusted publisher 验证通过后，进入每个包的：
+
+`Settings -> Publishing access`
+
+启用：
+
+- `Require two-factor authentication and disallow tokens`
+
+这样可以阻止传统 token 继续发布，但不会影响 trusted publishing。
 
 如果后续改成 `main` 分支，记得同步修改：
 
@@ -67,20 +132,133 @@ pnpm test
 
 1. npm scope/包名归属已经准备好，当前账号具备发布权限。
 2. GitHub 仓库默认分支与 workflow 触发分支一致。
-3. `pnpm build`、`pnpm test` 在本地都通过。
-4. 每个包的 `package.json` 都已经指向 `dist/*`，并带有 README。
+3. `release.yml` 运行在 GitHub-hosted runner，而不是 self-hosted runner。
+4. `pnpm build`、`pnpm test` 在本地都通过。
+5. 每个包的 `package.json` 都已经指向 `dist/*`，并带有 README。
+6. 4 个包都已经分别在 npm 后台配置 trusted publisher。
 
 ## 6. 常用维护命令
 
 ```bash
 pnpm changeset
 pnpm version-packages
-pnpm publish-packages
 pnpm release
+pnpm publish-packages:local
+pnpm release:local
 ```
 
 说明：
 
 - `pnpm version-packages`：本地应用 changeset，更新版本与 changelog。
-- `pnpm publish-packages`：执行 `changeset publish`。
-- `pnpm release`：本地完整发布命令，会先 build/test 再 publish。
+- `pnpm release`：本地准备 release 变更，会先 build/test，再执行 `changeset version`；适合生成版本号和 changelog。
+- `pnpm publish-packages:local`：执行本地 `changeset publish`，需要先完成 npm 登录。
+- `pnpm release:local`：本地完整发布命令，会先 build/test 再 publish；同样需要 npm 凭据。
+
+## 7. 推荐操作方式
+
+如果你使用当前仓库的 CI 自动发布，推荐日常流程是：
+
+1. 开发完成后执行 `pnpm changeset`
+2. 提交并合并到 `master`
+3. 等待 Changesets action 创建 release PR
+4. 合并 release PR，由 GitHub Actions 自动发布
+
+只有在你明确要绕过 CI 手动发包时，才使用 `pnpm publish-packages:local` 或 `pnpm release:local`。
+
+## 8. 常见问题
+
+### `npm error code E401`
+
+最常见原因有两个：
+
+1. 你是在本地终端执行了 `pnpm release:local` 或 `pnpm publish-packages:local`，但没有 `npm login`。
+2. 你以为 GitHub Actions 在走 trusted publishing，但实际上 workflow 没有命中正确的 trusted publisher 配置。
+
+排查顺序建议：
+
+1. 如果是本地命令报错：
+   直接判断为“缺少本地 npm 凭据”。
+2. 如果是 GitHub Actions 报错：
+   检查 4 个包是否都已经在 npm 后台单独配置 trusted publisher。
+3. 检查 `Workflow filename` 是否填成了 `release.yml`。
+4. 检查仓库/用户名是否分别是 `frontendMonitor` / `luorixin`。
+5. 检查 workflow 是否具有 `id-token: write`。
+6. 检查是否误用了 self-hosted runner。
+
+### `E403 403 Forbidden - Two-factor authentication or granular access token with bypass 2fa enabled is required to publish packages`
+
+这个报错比 `E401` 更具体，npm 的意思是：
+
+- 当前这次 publish 没有走 trusted publishing 的 OIDC 通道
+- 同时也没有提供一个满足 npm 2FA 要求的本地认证方式
+
+根据 npm 官方文档，发布 npm 包需要满足以下任一条件：
+
+- 账号启用了 2FA，并用交互式方式完成发布
+- 使用带 `bypass 2FA` 能力的 granular access token
+- 使用 GitHub Actions trusted publishing
+
+参考：
+
+- https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
+- https://docs.npmjs.com/about-access-tokens
+
+#### 场景 1：你是在本地执行 `pnpm release:local`
+
+这是最常见原因。处理方式二选一：
+
+1. 推荐：不要本地 publish，改走 CI trusted publishing
+2. 如果必须本地发：
+   - 先执行 `npm login`
+   - 确认当前 npm 账号已开启 2FA
+   - 或者创建一个带 `bypass 2FA` 的 granular token 再发布
+
+说明：
+
+- 仅仅“登录成功”不一定够，如果账号和 token 不满足包的 2FA 规则，仍然会报这个 `E403`
+- 如果包设置成 `Require two-factor authentication and disallow tokens`，那么 token 也不能发，只能交互式发布
+
+#### 场景 2：你是在 GitHub Actions 里看到这个错误
+
+这通常说明 workflow 没真正命中 trusted publishing。按这个顺序排查：
+
+1. 4 个包是否都已经分别在 npm 后台配置了 trusted publisher
+   不是只配一个 scope，也不是只配一个包
+2. 每个包的 trusted publisher 是否都指向：
+   - owner: `luorixin`
+   - repository: `frontendMonitor`
+   - workflow filename: `release.yml`
+   - branch: `master`
+3. workflow 是否运行在 GitHub-hosted runner
+4. `.github/workflows/release.yml` 是否包含：
+   - `permissions.id-token: write`
+5. 仓库 secrets 里是否误设置了 `NPM_TOKEN` / `NODE_AUTH_TOKEN`
+   如果设置了，发布流程可能会优先走 token 认证，而不是 trusted publishing
+6. 当前 npm 包页面的 Publishing access 是否要求 2FA
+   如果要求，而 trusted publisher 又没匹配成功，就会直接报这个 `E403`
+
+#### 我建议你现在怎么做
+
+如果你的目标是走我们这套 CI 自动发版，最稳的处理方式是：
+
+1. 不再本地执行 `pnpm release:local`
+2. 只执行：
+   - `pnpm changeset`
+   - 提交并合并到 `master`
+3. 到 npm 后台给这 4 个包逐个配 trusted publisher
+4. 检查 GitHub 仓库 secrets 里不要残留旧的 `NPM_TOKEN`
+5. 再让 `release.yml` 跑一次
+
+### release PR 已创建，但没有真正发布
+
+这是正常现象。Changesets action 分两阶段：
+
+1. 先创建或更新 release PR。
+2. release PR 合并后，下一次 workflow 才执行真正 publish。
+
+### 我到底该执行哪个命令
+
+- 日常开发：`pnpm changeset`
+- 本地生成版本和 changelog：`pnpm release`
+- 走 CI 自动发版：合并到 `master`
+- 本地强制手动发版：`pnpm release:local`

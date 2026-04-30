@@ -13,7 +13,7 @@ export default defineNuxtConfig({
     debug: true,
     dsn: "/monitor-api/collect"
   },
-  modules: ["@frontend-monitor/nuxt3"],
+  modules: ["frontend-monitor-nuxt3"],
   nitro: {
     devProxy: {
       "/monitor-api": {

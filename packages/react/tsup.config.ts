@@ -4,7 +4,7 @@ export default defineConfig({
   clean: true,
   dts: true,
   entry: ["src/index.ts"],
-  external: ["react", "@frontend-monitor/core"],
+  external: ["react", "frontend-monitor-core"],
   format: ["esm"],
   sourcemap: true,
   target: "es2022"

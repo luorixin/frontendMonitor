@@ -35,15 +35,15 @@
     "019ddbff-b879-7b33-8338-f32f387a9d9e": {
       "session_id": "019ddbff-b879-7b33-8338-f32f387a9d9e",
       "leader_thread_id": "019ddbff-b879-7b33-8338-f32f387a9d9e",
-      "updated_at": "2026-04-30T07:03:14.714Z",
+      "updated_at": "2026-04-30T07:58:11.808Z",
       "threads": {
         "019ddbff-b879-7b33-8338-f32f387a9d9e": {
           "thread_id": "019ddbff-b879-7b33-8338-f32f387a9d9e",
           "kind": "leader",
           "first_seen_at": "2026-04-30T02:20:11.552Z",
-          "last_seen_at": "2026-04-30T07:03:14.714Z",
-          "last_turn_id": "019ddd2c-ea35-7683-8ce9-394bcae27196",
-          "turn_count": 13
+          "last_seen_at": "2026-04-30T07:58:11.808Z",
+          "last_turn_id": "019ddd63-77cc-74b0-80ed-e2660d27c463",
+          "turn_count": 17
         }
       }
     }

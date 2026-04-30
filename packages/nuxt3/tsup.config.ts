@@ -8,8 +8,8 @@ export default defineConfig({
     "nuxt",
     "@nuxt/kit",
     "#app",
-    "@frontend-monitor/core",
-    "@frontend-monitor/vue3"
+    "frontend-monitor-core",
+    "frontend-monitor-vue3"
   ],
   format: ["esm"],
   sourcemap: true,

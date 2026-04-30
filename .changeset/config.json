@@ -4,10 +4,10 @@
   "commit": false,
   "fixed": [
     [
-      "@frontend-monitor/core",
-      "@frontend-monitor/vue3",
-      "@frontend-monitor/react",
-      "@frontend-monitor/nuxt3"
+      "frontend-monitor-core",
+      "frontend-monitor-vue3",
+      "frontend-monitor-react",
+      "frontend-monitor-nuxt3"
     ]
   ],
   "linked": [],

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { captureError, getOptions, track, useWebTracing } from "@frontend-monitor/vue3"
+import { captureError, getOptions, track, useWebTracing } from "frontend-monitor-vue3"
 
 const count = ref(0)
 const lastAction = ref("waiting")
@@ -38,7 +38,7 @@ function incrementCounter(): void {
       <p class="eyebrow">Vue 3 Adapter</p>
       <h1>frontend-monitor Vue 3 example</h1>
       <p class="lede">
-        这个示例演示 `@frontend-monitor/vue3` 插件、`useWebTracing()` 注入和 Vue
+        这个示例演示 `frontend-monitor-vue3` 插件、`useWebTracing()` 注入和 Vue
         组件错误桥接。
       </p>
     </section>

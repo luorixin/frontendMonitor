@@ -1,4 +1,4 @@
-import WebTracingPlugin from "@frontend-monitor/vue3"
+import WebTracingPlugin from "frontend-monitor-vue3"
 import { defineNuxtPlugin } from "#app"
 
 export default defineNuxtPlugin(nuxtApp => {

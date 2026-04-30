@@ -143,7 +143,7 @@ class FakeIntersectionObserver {
   }
 }
 
-describe("@frontend-monitor/core", () => {
+describe("frontend-monitor-core", () => {
   let sentPayloads: SentPayload[]
   let fetchMock: ReturnType<typeof vi.fn>
   let sendBeaconSpy: ReturnType<typeof vi.fn>

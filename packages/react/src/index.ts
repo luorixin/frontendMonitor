@@ -10,8 +10,8 @@ import {
   sendLocal,
   setUser,
   track
-} from "@frontend-monitor/core"
-import type { MonitorOptions } from "@frontend-monitor/core"
+} from "frontend-monitor-core"
+import type { MonitorOptions } from "frontend-monitor-core"
 import type { ErrorInfo, PropsWithChildren, ReactNode } from "react"
 import { Component, useEffect } from "react"
 
@@ -84,4 +84,4 @@ export function useWebTracing() {
   }
 }
 
-export * from "@frontend-monitor/core"
+export * from "frontend-monitor-core"

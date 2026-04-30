@@ -4,7 +4,7 @@ const injectMock = vi.fn()
 const initMock = vi.fn()
 const captureErrorMock = vi.fn()
 
-vi.mock("@frontend-monitor/core", () => ({
+vi.mock("frontend-monitor-core", () => ({
   captureError: captureErrorMock,
   flush: vi.fn(),
   getOptions: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("vue", () => ({
   inject: injectMock
 }))
 
-describe("@frontend-monitor/vue3", () => {
+describe("frontend-monitor-vue3", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

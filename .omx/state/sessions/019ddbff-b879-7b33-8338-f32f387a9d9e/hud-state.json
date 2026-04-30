@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-30T07:03:14.858Z",
-  "turn_count": 13,
-  "last_progress_at": "2026-04-30T07:03:14.858Z",
-  "last_agent_output": "这套发版流程已经补上了，核心落点在 [package.json](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/package.jso"
+  "last_turn_at": "2026-04-30T07:58:11.912Z",
+  "turn_count": 17,
+  "last_progress_at": "2026-04-30T07:58:11.912Z",
+  "last_agent_output": "已经把所有 `@frontend-monitor/*` 改成无 scope 包名了，并且把内部依赖、源码导入、示例项目、Changesets、README 和发布文档一起同步好了。\n\n现在 4 个发布"
 }

@@ -4,7 +4,7 @@ export default defineConfig({
   clean: true,
   dts: true,
   entry: ["src/index.ts"],
-  external: ["vue", "@frontend-monitor/core"],
+  external: ["vue", "frontend-monitor-core"],
   format: ["esm"],
   sourcemap: true,
   target: "es2022"

@@ -6,7 +6,7 @@ const createResolverMock = vi.fn(() => ({
   resolve: (...segments: string[]) => segments.join("/")
 }))
 
-vi.mock("@frontend-monitor/core", () => ({}))
+vi.mock("frontend-monitor-core", () => ({}))
 
 vi.mock("@nuxt/kit", () => ({
   addPlugin: addPluginMock,
@@ -15,7 +15,7 @@ vi.mock("@nuxt/kit", () => ({
   defineNuxtModule: (definition: unknown) => definition
 }))
 
-describe("@frontend-monitor/nuxt3", () => {
+describe("frontend-monitor-nuxt3", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

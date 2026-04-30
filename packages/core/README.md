@@ -1,17 +1,17 @@
-# @frontend-monitor/core
+# frontend-monitor-core
 
 浏览器端监控 SDK 核心包，提供初始化、事件采集、队列上报、脱敏、本地化缓存和页面退出发送能力。
 
 ## Install
 
 ```bash
-pnpm add @frontend-monitor/core
+pnpm add frontend-monitor-core
 ```
 
 ## Usage
 
 ```ts
-import { init, track, captureError } from "@frontend-monitor/core"
+import { init, track, captureError } from "frontend-monitor-core"
 
 init({
   dsn: "https://your-domain.example/collect",

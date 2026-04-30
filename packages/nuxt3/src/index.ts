@@ -1,5 +1,5 @@
 import { addPlugin, addTemplate, createResolver, defineNuxtModule } from "@nuxt/kit"
-import type { MonitorOptions } from "@frontend-monitor/core"
+import type { MonitorOptions } from "frontend-monitor-core"
 
 export type Nuxt3TracingModuleOptions = MonitorOptions & {
   captureVueErrors?: boolean
@@ -11,7 +11,7 @@ export default defineNuxtModule<Nuxt3TracingModuleOptions>({
   } as Nuxt3TracingModuleOptions,
   meta: {
     configKey: "frontendMonitor",
-    name: "@frontend-monitor/nuxt3"
+    name: "frontend-monitor-nuxt3"
   },
   setup(moduleOptions, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -33,4 +33,4 @@ export default defineNuxtModule<Nuxt3TracingModuleOptions>({
   }
 })
 
-export * from "@frontend-monitor/core"
+export * from "frontend-monitor-core"

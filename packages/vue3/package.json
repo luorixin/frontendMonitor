@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-monitor/vue3",
+  "name": "frontend-monitor-vue3",
   "version": "0.1.0",
   "private": false,
   "description": "Vue 3 adapter for the frontend-monitor browser SDK.",
@@ -18,7 +18,7 @@
     }
   },
   "dependencies": {
-    "@frontend-monitor/core": "workspace:^"
+    "frontend-monitor-core": "workspace:^"
   },
   "peerDependencies": {
     "vue": "^3.0.0"

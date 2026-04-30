@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@frontend-monitor/core": ["../core/src/index.ts"]
+      "frontend-monitor-core": ["../core/src/index.ts"]
     },
     "rootDir": ".."
   },

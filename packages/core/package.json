@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-monitor/core",
+  "name": "frontend-monitor-core",
   "version": "0.1.0",
   "private": false,
   "description": "Core browser monitoring SDK for frontend-monitor.",

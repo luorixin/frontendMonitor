@@ -1,6 +1,6 @@
 # Changesets Workflow
 
-本仓库使用 Changesets 管理 `@frontend-monitor/*` 包的版本、变更记录和 npm 发布。
+本仓库使用 Changesets 管理 `frontend-monitor-*` 包的版本、变更记录和 npm 发布。
 
 ## 常用命令
 

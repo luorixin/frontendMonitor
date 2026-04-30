@@ -9,8 +9,8 @@ import {
   sendLocal,
   setUser,
   track
-} from "@frontend-monitor/core"
-import type { MonitorOptions } from "@frontend-monitor/core"
+} from "frontend-monitor-core"
+import type { MonitorOptions } from "frontend-monitor-core"
 import { inject } from "vue"
 import type { App, Plugin } from "vue"
 
@@ -86,4 +86,4 @@ export function useWebTracing(): WebTracingApi {
 
 export default WebTracingPlugin
 
-export * from "@frontend-monitor/core"
+export * from "frontend-monitor-core"

@@ -14,6 +14,7 @@ pnpm dev:example:nuxt3
 pnpm test
 pnpm build
 pnpm release
+pnpm release:local
 ```
 
 ## Apps
@@ -52,7 +53,7 @@ pnpm release
 
 ```ts
 import { createApp } from "vue"
-import WebTracingPlugin from "@frontend-monitor/vue3"
+import WebTracingPlugin from "frontend-monitor-vue3"
 
 const app = createApp(App)
 
@@ -69,7 +70,7 @@ app.use(WebTracingPlugin, {
 import {
   WebTracingErrorBoundary,
   WebTracingProvider
-} from "@frontend-monitor/react"
+} from "frontend-monitor-react"
 
 export function Root() {
   return (
@@ -91,7 +92,7 @@ export function Root() {
 
 ```ts
 export default defineNuxtConfig({
-  modules: ["@frontend-monitor/nuxt3"],
+  modules: ["frontend-monitor-nuxt3"],
   frontendMonitor: {
     dsn: "/monitor-api/collect",
     appName: "nuxt3-app",
@@ -115,3 +116,5 @@ export default defineNuxtConfig({
 - CI 校验见 `.github/workflows/ci.yml`
 - 自动发版见 `.github/workflows/release.yml`
 - 维护说明见 [docs/release.md](./docs/release.md)
+- `pnpm release` 只做本地版本准备，不会直接推 npm
+- 需要本地手动发包时使用 `pnpm release:local`，并先完成 `npm login`

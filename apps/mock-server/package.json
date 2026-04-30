@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-monitor/mock-server",
+  "name": "frontend-monitor-mock-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",

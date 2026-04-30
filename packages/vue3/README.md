@@ -1,11 +1,11 @@
-# @frontend-monitor/vue3
+# frontend-monitor-vue3
 
-Vue 3 适配层，基于 `@frontend-monitor/core` 提供插件安装、依赖注入和 `app.config.errorHandler` 错误桥接。
+Vue 3 适配层，基于 `frontend-monitor-core` 提供插件安装、依赖注入和 `app.config.errorHandler` 错误桥接。
 
 ## Install
 
 ```bash
-pnpm add @frontend-monitor/vue3 @frontend-monitor/core
+pnpm add frontend-monitor-vue3 frontend-monitor-core
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ pnpm add @frontend-monitor/vue3 @frontend-monitor/core
 ```ts
 import { createApp } from "vue"
 import App from "./App.vue"
-import WebTracingPlugin from "@frontend-monitor/vue3"
+import WebTracingPlugin from "frontend-monitor-vue3"
 
 const app = createApp(App)
 
@@ -29,7 +29,7 @@ app.mount("#app")
 ## Composable
 
 ```ts
-import { useWebTracing } from "@frontend-monitor/vue3"
+import { useWebTracing } from "frontend-monitor-vue3"
 
 const tracing = useWebTracing()
 tracing.track("cta_click")

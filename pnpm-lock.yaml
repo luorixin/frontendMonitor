@@ -16,7 +16,7 @@ importers:
         version: 4.22.1
     devDependencies:
       '@changesets/cli':
-        specifier: ^2.0.0
+        specifier: ^2.31.0
         version: 2.31.0(@types/node@22.19.17)
       '@types/express':
         specifier: ^4.17.21
@@ -45,13 +45,13 @@ importers:
 
   apps/demo:
     dependencies:
-      '@frontend-monitor/core':
+      frontend-monitor-core:
         specifier: workspace:*
         version: link:../../packages/core
 
   apps/examples-nuxt3:
     dependencies:
-      '@frontend-monitor/nuxt3':
+      frontend-monitor-nuxt3:
         specifier: workspace:*
         version: link:../../packages/nuxt3
       nuxt:
@@ -63,7 +63,7 @@ importers:
 
   apps/examples-react:
     dependencies:
-      '@frontend-monitor/react':
+      frontend-monitor-react:
         specifier: workspace:*
         version: link:../../packages/react
       react:
@@ -85,7 +85,7 @@ importers:
 
   apps/examples-vue3:
     dependencies:
-      '@frontend-monitor/vue3':
+      frontend-monitor-vue3:
         specifier: workspace:*
         version: link:../../packages/vue3
       vue:
@@ -102,10 +102,10 @@ importers:
 
   packages/nuxt3:
     dependencies:
-      '@frontend-monitor/core':
+      frontend-monitor-core:
         specifier: workspace:^
         version: link:../core
-      '@frontend-monitor/vue3':
+      frontend-monitor-vue3:
         specifier: workspace:^
         version: link:../vue3
       nuxt:
@@ -114,7 +114,7 @@ importers:
 
   packages/react:
     dependencies:
-      '@frontend-monitor/core':
+      frontend-monitor-core:
         specifier: workspace:^
         version: link:../core
       react:
@@ -126,7 +126,7 @@ importers:
 
   packages/vue3:
     dependencies:
-      '@frontend-monitor/core':
+      frontend-monitor-core:
         specifier: workspace:^
         version: link:../core
       vue:

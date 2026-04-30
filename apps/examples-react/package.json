@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-monitor/examples-react",
+  "name": "frontend-monitor-examples-react",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@frontend-monitor/react": "workspace:*",
+    "frontend-monitor-react": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-monitor/nuxt3",
+  "name": "frontend-monitor-nuxt3",
   "version": "0.1.0",
   "private": false,
   "description": "Nuxt 3 module adapter for the frontend-monitor browser SDK.",
@@ -23,8 +23,8 @@
     }
   },
   "dependencies": {
-    "@frontend-monitor/core": "workspace:^",
-    "@frontend-monitor/vue3": "workspace:^"
+    "frontend-monitor-core": "workspace:^",
+    "frontend-monitor-vue3": "workspace:^"
   },
   "peerDependencies": {
     "nuxt": "^3.0.0"

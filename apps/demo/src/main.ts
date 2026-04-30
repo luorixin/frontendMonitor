@@ -7,7 +7,7 @@ import {
   intersectionObserver,
   intersectionUnobserve,
   track
-} from "@frontend-monitor/core"
+} from "frontend-monitor-core"
 import "./style.css"
 
 const apiBase = "/monitor-api"

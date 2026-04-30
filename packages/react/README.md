@@ -1,11 +1,11 @@
-# @frontend-monitor/react
+# frontend-monitor-react
 
 React 适配层，提供 `WebTracingProvider`、`WebTracingErrorBoundary` 和 `useWebTracing()`。
 
 ## Install
 
 ```bash
-pnpm add @frontend-monitor/react @frontend-monitor/core
+pnpm add frontend-monitor-react frontend-monitor-core
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ pnpm add @frontend-monitor/react @frontend-monitor/core
 import {
   WebTracingErrorBoundary,
   WebTracingProvider
-} from "@frontend-monitor/react"
+} from "frontend-monitor-react"
 
 export function Root() {
   return (
@@ -35,7 +35,7 @@ export function Root() {
 ## Hook
 
 ```tsx
-import { useWebTracing } from "@frontend-monitor/react"
+import { useWebTracing } from "frontend-monitor-react"
 
 function Button() {
   const tracing = useWebTracing()
