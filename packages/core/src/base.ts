@@ -13,6 +13,7 @@ export function buildBasePayload(): BasePayload {
   return {
     appName: options.appName,
     appVersion: options.appVersion,
+    deviceId: state.deviceId,
     pageId: state.pageId,
     sdkVersion: SDK_VERSION,
     sessionId: state.sessionId,

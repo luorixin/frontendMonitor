@@ -39,6 +39,38 @@ app.get("/bad-request", (_request, response) => {
 
 app.post("/collect", (request, response) => {
   const payload = request.body as StoredPayload
+  storePayload(payload)
+
+  response.status(200).json({
+    ok: true,
+    received: payload?.events?.length ?? 0
+  })
+})
+
+app.get("/collect", (request, response) => {
+  const rawData = request.query.data
+  const payload = typeof rawData === "string" ? safeParsePayload(rawData) : null
+
+  if (payload) {
+    storePayload(payload)
+  }
+
+  response
+    .status(200)
+    .type("image/gif")
+    .send(
+      Buffer.from(
+        "R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==",
+        "base64"
+      )
+    )
+})
+
+app.listen(port, () => {
+  console.info(`[mock-server] listening on http://localhost:${port}`)
+})
+
+function storePayload(payload: StoredPayload): void {
   events.push(payload)
 
   if (events.length > 100) {
@@ -49,13 +81,12 @@ app.post("/collect", (request, response) => {
     eventCount: payload?.events?.length ?? 0,
     eventTypes: payload?.events?.map(event => event.type) ?? []
   })
+}
 
-  response.status(200).json({
-    ok: true,
-    received: payload?.events?.length ?? 0
-  })
-})
-
-app.listen(port, () => {
-  console.info(`[mock-server] listening on http://localhost:${port}`)
-})
+function safeParsePayload(raw: string): StoredPayload | null {
+  try {
+    return JSON.parse(raw) as StoredPayload
+  } catch {
+    return null
+  }
+}

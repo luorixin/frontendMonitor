@@ -1,11 +1,12 @@
 import { buildPayload } from "./base"
 import { DEFAULT_OPTIONS } from "./config"
 import { state, clearTimer } from "./context"
-import { runBeforeSendHooks } from "./hooks"
+import { runAfterSendHooks, runBeforePushEventHooks, runBeforeSendHooks } from "./hooks"
+import { persistLocalizedPayload } from "./localization"
 import { sendPayload } from "./transport"
 import type { MonitorEvent } from "./types"
 
-function debugLog(message: string, payload?: unknown): void {
+export function debugLog(message: string, payload?: unknown): void {
   if (!state.options?.debug) return
   if (payload === undefined) {
     console.info(`[frontend-monitor] ${message}`)
@@ -23,7 +24,25 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
     return
   }
 
-  state.queue.push(event)
+  if (state.networkStatus === "offline") {
+    debugLog("drop event: offline")
+    return
+  }
+
+  const hookResult = runBeforePushEventHooks(event)
+  if (hookResult === false) {
+    debugLog("drop event from beforePushEvent hook")
+    return
+  }
+
+  const events = Array.isArray(hookResult) ? hookResult : [hookResult]
+
+  for (const ev of events) {
+    if (state.queue.length >= state.options.maxQueueLength) {
+      state.queue.shift()
+    }
+    state.queue.push(ev)
+  }
 
   if (state.queue.length >= state.options.batchSize || flush) {
     void flushQueue()
@@ -43,16 +62,28 @@ export function scheduleFlush(): void {
 }
 
 export function flushQueue(): Promise<void> {
+  return flushQueueWithOptions()
+}
+
+export function flushQueueOnExit(): Promise<void> {
+  return flushQueueWithOptions({ preferBeacon: true })
+}
+
+function flushQueueWithOptions(options?: {
+  preferBeacon?: boolean
+}): Promise<void> {
   if (state.flushPromise) return state.flushPromise
 
-  state.flushPromise = flushQueueInternal().finally(() => {
+  state.flushPromise = flushQueueInternal(options).finally(() => {
     state.flushPromise = null
   })
 
   return state.flushPromise
 }
 
-async function flushQueueInternal(): Promise<void> {
+async function flushQueueInternal(options?: {
+  preferBeacon?: boolean
+}): Promise<void> {
   if (!state.initialized || !state.options || state.queue.length === 0) return
 
   state.flushTimer = clearTimer(state.flushTimer)
@@ -66,7 +97,18 @@ async function flushQueueInternal(): Promise<void> {
     return
   }
 
-  const result = await sendPayload(state.options.dsn, processedPayload)
+  if (state.options.localization) {
+    const persisted = persistLocalizedPayload(processedPayload)
+    debugLog(persisted ? "persist localized payload" : "persist localized failed")
+    return
+  }
+
+  const result = await sendPayload(state.options.dsn, processedPayload, {
+    preferBeacon: options?.preferBeacon,
+    timeout: state.options.timeout
+  })
+
+  runAfterSendHooks(result, processedPayload)
 
   if (!result.success) {
     debugLog("send failed", result)

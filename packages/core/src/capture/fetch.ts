@@ -1,10 +1,11 @@
-import { enqueueEvent } from "../queue"
+import { enqueueEvent, debugLog } from "../queue"
 import { state } from "../context"
-import type { RequestEventPayload } from "../types"
 import { matchesIgnoreRule, now } from "../utils"
+import { createRequestErrorEvent } from "./request-event"
+import type { RequestPerformanceEventPayload } from "../types"
 
 export function initFetchCapture(): void {
-  if (!state.options?.capture.fetchError) return
+  if (!state.options?.capture.fetchError && !state.options?.capture.requestPerformance) return
   if (state.originalFetch) return
 
   const originalFetch = window.fetch
@@ -25,56 +26,73 @@ export function initFetchCapture(): void {
 
     try {
       const response = await originalFetch.call(window, input, init)
+      const duration = now() - start
 
-      if (!response.ok) {
-        enqueueEvent(
-          createRequestErrorEvent({
-            duration: now() - start,
+      if (response.ok) {
+        if (state.options?.capture.requestPerformance) {
+          enqueueEvent(createRequestPerformanceEvent({
+            duration,
             method,
             status: response.status,
+            transport: "fetch",
             url: requestUrl
-          })
-        )
+          }))
+        }
+      } else {
+        if (state.options?.capture.fetchError) {
+          enqueueEvent(
+            createRequestErrorEvent({
+              duration,
+              method,
+              status: response.status,
+              transport: "fetch",
+              url: requestUrl
+            })
+          )
+        }
       }
 
       return response
     } catch (error) {
-      enqueueEvent(
-        createRequestErrorEvent({
-          duration: now() - start,
-          errorMessage:
-            error instanceof Error ? error.message : "Network request failed",
-          method,
-          url: requestUrl
-        })
-      )
+      if (state.options?.capture.fetchError) {
+        enqueueEvent(
+          createRequestErrorEvent({
+            duration: now() - start,
+            errorMessage:
+              error instanceof Error ? error.message : "Network request failed",
+            method,
+            transport: "fetch",
+            url: requestUrl
+          })
+        )
+      }
       throw error
     }
   }) as typeof window.fetch
+}
+
+function createRequestPerformanceEvent(params: {
+  duration: number
+  method: string
+  status: number
+  transport: "fetch" | "xhr"
+  url: string
+}): RequestPerformanceEventPayload {
+  return {
+    duration: params.duration,
+    method: params.method,
+    status: params.status,
+    timestamp: now(),
+    transport: params.transport,
+    type: "request_performance",
+    url: params.url
+  }
 }
 
 export function restoreFetchCapture(): void {
   if (!state.originalFetch) return
   window.fetch = state.originalFetch
   state.originalFetch = null
-}
-
-function createRequestErrorEvent(input: {
-  duration: number
-  errorMessage?: string
-  method: string
-  status?: number
-  url: string
-}): RequestEventPayload {
-  return {
-    duration: input.duration,
-    errorMessage: input.errorMessage,
-    method: input.method,
-    status: input.status,
-    timestamp: now(),
-    type: "request_error",
-    url: input.url
-  }
 }
 
 function resolveMethod(input: RequestInfo | URL, init?: RequestInit): string {

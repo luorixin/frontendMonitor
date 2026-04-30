@@ -1,7 +1,12 @@
 import { state, addCleanup } from "../context"
-import { enqueueEvent } from "../queue"
+import { enqueueEvent, debugLog } from "../queue"
 import type { ClickEventPayload } from "../types"
-import { now, textPreview, toSelector } from "../utils"
+import {
+  getRedactedInputText,
+  now,
+  textPreview,
+  toSelector
+} from "../utils"
 
 const CLICK_THROTTLE = 100
 
@@ -19,7 +24,12 @@ export function initClickCapture(): void {
     if (currentTime - state.lastClickAt < CLICK_THROTTLE) return
     state.lastClickAt = currentTime
 
-    enqueueEvent(createClickEvent(target, tagName, currentTime))
+    const clickEvent = createClickEvent(target, tagName, currentTime)
+    enqueueEvent(clickEvent)
+
+    if (state.options?.debug) {
+      debugLog("capture click", clickEvent)
+    }
   }
 
   document.addEventListener("click", onClick, true)
@@ -36,9 +46,22 @@ function createClickEvent(
   return {
     selector: toSelector(target),
     tagName,
-    textPreview: textPreview(target.textContent ?? ""),
+    textPreview: resolveClickText(target),
     timestamp,
     type: "click",
     url: window.location.href
   }
+}
+
+function resolveClickText(target: Element): string {
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.getAttribute("contenteditable") === "true"
+  ) {
+    return getRedactedInputText()
+  }
+
+  return textPreview(target.textContent ?? "")
 }

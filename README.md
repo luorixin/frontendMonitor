@@ -21,14 +21,17 @@ pnpm build
 
 当前版本包含：
 
-- 手动 API：`init`、`destroy`、`track`、`captureError`、`setUser`、`beforeSend`、`flush`
-- 自动采集：全局错误、Promise reject、`fetch` 失败、PV、路由变化、点击事件
-- 上报链路：内存队列、批量发送、采样、忽略上报地址、`sendBeacon`/`fetch`
+- 手动 API：`init`、`destroy`、`track`、`captureError`、`setUser`、`beforeSend`、`flush`、`sendLocal`
+- 自动采集：全局错误、Promise reject、`fetch` 失败、`XMLHttpRequest` 失败、PV、路由变化、点击事件、导航性能
+- 曝光能力：`intersectionObserver`、`intersectionUnobserve`、`intersectionDisconnect`
+- 基础性能采集：页面导航性能事件
+- 上报链路：内存队列、批量发送、采样、忽略上报地址、`sendBeacon`/`image`/`xhr` 三段降级、页面关闭时 `beacon` flush
+- 本地化模式：`localization: true` 时先写入 `localStorage`，业务可手动调用 `sendLocal()`
+- 错误聚合：`scopeError: true` 时短时间重复错误会聚合到首条错误事件的 `scopeCount`
+- 发送前处理：内置脱敏 hook，会统一处理 `token`、手机号、身份证号、输入框内容
 
 当前版本不包含：
 
-- XHR 重写
 - 录屏
-- 曝光采集
-- 本地离线缓存
+- 自动离线重试
 - 框架适配层

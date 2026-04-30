@@ -3,3 +3,6 @@ dist
 coverage
 .vite
 *.tsbuildinfo
+.omx/
+.pnpm-store/
+*/.nvm/

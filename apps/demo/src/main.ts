@@ -3,6 +3,9 @@ import {
   destroy,
   getOptions,
   init,
+  intersectionDisconnect,
+  intersectionObserver,
+  intersectionUnobserve,
   track
 } from "@frontend-monitor/core"
 import "./style.css"
@@ -37,9 +40,12 @@ app.innerHTML = `
           <button data-action="captureError">Capture Error</button>
           <button data-action="promiseReject">Promise Reject</button>
           <button data-action="fetch404">Fetch 404</button>
+          <button data-action="xhr404">XHR 404</button>
           <button data-action="fetchNetwork">Fetch Network Error</button>
           <button data-action="routePush">Push Route</button>
           <button data-action="routeHash">Hash Route</button>
+          <button data-action="observeExposure">Observe Exposure</button>
+          <button data-action="unobserveExposure">Unobserve Exposure</button>
         </div>
       </div>
 
@@ -49,11 +55,28 @@ app.innerHTML = `
           <button class="accent">Primary Action</button>
           <button class="muted">Secondary Action</button>
           <a href="javascript:void(0)" class="linkish">Focusable text link</a>
+          <input value="13800138000" aria-label="masked input" />
           <p>
             点这里附近的元素可以触发自动 click 采集，文案会被截断到 80 个字符。
           </p>
         </div>
       </div>
+    </section>
+
+    <section class="panel exposure-panel">
+      <h2>Exposure Zone</h2>
+      <p class="exposure-copy">
+        点击 “Observe Exposure” 后，向下滚动或把下面卡片滚入可视区域，SDK 会通过
+        IntersectionObserver 上报一条 exposure 事件。
+      </p>
+      <div class="exposure-spacer">Scroll to reveal the observed card</div>
+      <article id="exposure-target" class="exposure-card">
+        <p class="eyebrow">Observed Module</p>
+        <h3>Campaign Banner</h3>
+        <p>
+          这里用于验证曝光采集，阈值设为 0.5，参数里会带上 slot、campaign 等自定义信息。
+        </p>
+      </article>
     </section>
 
     <section class="grid">
@@ -74,11 +97,15 @@ const eventsPanel = document.querySelector<HTMLPreElement>("#events-panel")
 
 let initialized = false
 let routeIndex = 0
+const exposureTarget = document.querySelector<HTMLElement>("#exposure-target")
 
 const demoOptions = {
   appName: "frontend-monitor-demo",
   appVersion: "0.1.0",
   batchSize: 2,
+  capture: {
+    performance: true
+  },
   debug: true,
   dsn,
   flushInterval: 1500
@@ -136,6 +163,7 @@ function wireButtons() {
       }
 
       if (action === "destroy") {
+        intersectionDisconnect()
         destroy()
         initialized = false
         renderState()
@@ -160,6 +188,9 @@ function wireButtons() {
         case "fetch404":
           await fetch(`${apiBase}/bad-request`)
           break
+        case "xhr404":
+          await sendXHR(`${apiBase}/bad-request`)
+          break
         case "fetchNetwork":
           try {
             await fetch("http://localhost:4319/network-error")
@@ -174,6 +205,23 @@ function wireButtons() {
         case "routeHash":
           routeIndex += 1
           window.location.hash = `step-${routeIndex}`
+          break
+        case "observeExposure":
+          if (exposureTarget) {
+            intersectionObserver({
+              params: {
+                campaign: "spring-launch",
+                slot: "hero-banner"
+              },
+              target: exposureTarget,
+              threshold: 0.5
+            })
+          }
+          break
+        case "unobserveExposure":
+          if (exposureTarget) {
+            intersectionUnobserve(exposureTarget)
+          }
           break
         default:
           break
@@ -192,3 +240,13 @@ void refreshEventsPanel()
 window.setInterval(() => {
   void refreshEventsPanel()
 }, 2000)
+
+function sendXHR(url: string): Promise<void> {
+  return new Promise(resolve => {
+    const xhr = new XMLHttpRequest()
+    xhr.open("GET", url)
+    xhr.onloadend = () => resolve()
+    xhr.onerror = () => resolve()
+    xhr.send()
+  })
+}

@@ -1,6 +1,7 @@
 export { matchesIgnoreRule } from "./matchesIgnoreRule"
 export { now } from "./now"
 export { safeStringify } from "./safeStringify"
+export { getRedactedInputText, redactSensitiveText, sanitizeValue } from "./sanitize"
 export { toSelector } from "./selector"
 export { textPreview } from "./textPreview"
 export { uuid } from "./uuid"

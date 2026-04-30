@@ -2,13 +2,32 @@ export type BeforeSendHandler = (
   payload: MonitorPayload
 ) => MonitorPayload | false
 
+export type BeforePushEventHandler = (
+  event: MonitorEvent
+) => MonitorEvent | MonitorEvent[] | false
+
+export type AfterSendHandler = (
+  result: TransportResult,
+  payload: MonitorPayload
+) => void
+
+export type LocalizationOverflowHandler = (error: Error) => void
+
+export type NetworkStatus = "online" | "offline"
+
 export type CaptureOptions = {
   jsError?: boolean
   promiseRejection?: boolean
+  consoleError?: boolean
+  resourceError?: boolean
   fetchError?: boolean
+  xhrError?: boolean
+  performance?: boolean
+  requestPerformance?: boolean
   pageView?: boolean
   routeChange?: boolean
   click?: boolean
+  exposure?: boolean
 }
 
 export type MonitorOptions = {
@@ -19,10 +38,18 @@ export type MonitorOptions = {
   sampleRate?: number
   batchSize?: number
   flushInterval?: number
+  maxQueueLength?: number
+  timeout?: number
   debug?: boolean
   ignoreUrls?: Array<string | RegExp>
   capture?: CaptureOptions
+  localization?: boolean
+  localizationKey?: string
+  localizationOverflow?: LocalizationOverflowHandler
+  scopeError?: boolean
   beforeSend?: BeforeSendHandler
+  beforePushEvent?: BeforePushEventHandler
+  afterSend?: AfterSendHandler
 }
 
 export type ResolvedMonitorOptions = {
@@ -33,15 +60,24 @@ export type ResolvedMonitorOptions = {
   sampleRate: number
   batchSize: number
   flushInterval: number
+  maxQueueLength: number
+  timeout: number
   debug: boolean
   ignoreUrls: Array<string | RegExp>
   capture: Required<CaptureOptions>
+  localization: boolean
+  localizationKey: string
+  localizationOverflow?: LocalizationOverflowHandler
+  scopeError: boolean
   beforeSend?: BeforeSendHandler
+  beforePushEvent?: BeforePushEventHandler
+  afterSend?: AfterSendHandler
 }
 
 export type BasePayload = {
   appName: string
   appVersion?: string
+  deviceId: string
   userId?: string
   sessionId: string
   pageId: string
@@ -72,6 +108,7 @@ export type ErrorEventPayload = BaseEvent & {
   message: string
   stack?: string
   source?: string
+  scopeCount?: number
   params?: Record<string, unknown>
 }
 
@@ -81,13 +118,79 @@ export type RequestEventPayload = BaseEvent & {
   status?: number
   duration: number
   errorMessage?: string
+  transport: "fetch" | "xhr"
+  url: string
 }
+
+export type RequestPerformanceEventPayload = BaseEvent & {
+  type: "request_performance"
+  method: string
+  url: string
+  status: number
+  duration: number
+  transport: "fetch" | "xhr"
+}
+
+export type ConsoleErrorEventPayload = BaseEvent & {
+  type: "console_error"
+  args: string[]
+}
+
+export type ResourceErrorEventPayload = BaseEvent & {
+  type: "resource_error"
+  message: string
+  resourceType: string
+  selector: string
+}
+
+export type PerformanceEventPayload =
+  | BaseEvent & {
+      type: "performance"
+      performanceType: "navigation"
+      navigationType?: string
+      metrics: {
+        dnsLookup: number
+        tcpConnect: number
+        ttfb: number
+        response: number
+        domInteractive: number
+        domContentLoaded: number
+        loadEvent: number
+        redirect: number
+        firstPaint?: number
+        firstContentfulPaint?: number
+      }
+    }
+  | BaseEvent & {
+      type: "performance"
+      performanceType: "resource"
+      name: string
+      resourceType: string
+      duration: number
+      startTime: number
+      transferSize?: number
+    }
+  | BaseEvent & {
+      type: "performance"
+      performanceType: "request"
+      method: string
+      url: string
+      status: number
+      duration: number
+      transport: "fetch" | "xhr"
+    }
 
 export type PageViewEventPayload = BaseEvent & {
   type: "page_view"
   from: string | null
   to: string
   trigger: "load"
+}
+
+export type PageDwellEventPayload = BaseEvent & {
+  type: "page_dwell"
+  pageId: string
+  duration: number
 }
 
 export type RouteChangeEventPayload = BaseEvent & {
@@ -104,13 +207,36 @@ export type ClickEventPayload = BaseEvent & {
   selector: string
 }
 
+export type ExposureEventPayload = BaseEvent & {
+  type: "exposure"
+  action: "enter" | "leave"
+  tagName: string
+  textPreview: string
+  selector: string
+  ratio: number
+  threshold: number
+  params?: Record<string, unknown>
+}
+
+export type ExposureObserverOptions = {
+  target: Element
+  threshold?: number
+  params?: Record<string, unknown>
+}
+
 export type MonitorEvent =
   | CustomEventPayload
   | ErrorEventPayload
   | RequestEventPayload
+  | RequestPerformanceEventPayload
+  | ConsoleErrorEventPayload
+  | ResourceErrorEventPayload
+  | PerformanceEventPayload
+  | PageDwellEventPayload
   | PageViewEventPayload
   | RouteChangeEventPayload
   | ClickEventPayload
+  | ExposureEventPayload
 
 export type MonitorPayload = {
   base: BasePayload
@@ -119,6 +245,12 @@ export type MonitorPayload = {
 
 export type TransportResult = {
   success: boolean
-  transport: "beacon" | "fetch"
+  transport: "beacon" | "image" | "xhr"
   status?: number
+  reason?: "beacon_failed" | "image_failed" | "xhr_failed" | "network_error" | "unknown"
+}
+
+export type SendPayloadOptions = {
+  preferBeacon?: boolean
+  timeout?: number
 }

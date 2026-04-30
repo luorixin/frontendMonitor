@@ -1,8 +1,19 @@
 import { state } from "./context"
-import { registerBeforeSend } from "./hooks"
+import {
+  registerAfterSend,
+  registerBeforePushEvent,
+  registerBeforeSend
+} from "./hooks"
+import { sendLocal as sendLocalizedPayloads } from "./localization"
 import { enqueueEvent, flushQueue } from "./queue"
-import type { BeforeSendHandler, MonitorOptions, ResolvedMonitorOptions } from "./types"
-import { createErrorEvent } from "./capture/error"
+import type {
+  AfterSendHandler,
+  BeforePushEventHandler,
+  BeforeSendHandler,
+  MonitorOptions,
+  ResolvedMonitorOptions
+} from "./types"
+import { createErrorEvent, enqueueScopedError } from "./capture/error"
 import { now } from "./utils"
 
 export function track(
@@ -31,7 +42,7 @@ export function captureError(
 ): void {
   if (!state.initialized) return
 
-  enqueueEvent(createErrorEvent("js_error", error, { params }), flush)
+  enqueueScopedError(createErrorEvent("js_error", error, { params }), flush)
 }
 
 export function setUser(userId: string): void {
@@ -43,8 +54,20 @@ export function beforeSend(handler: BeforeSendHandler): void {
   registerBeforeSend(handler)
 }
 
+export function beforePushEvent(handler: BeforePushEventHandler): void {
+  registerBeforePushEvent(handler)
+}
+
+export function afterSend(handler: AfterSendHandler): void {
+  registerAfterSend(handler)
+}
+
 export function flush(): Promise<void> {
   return flushQueue()
+}
+
+export function sendLocal(): Promise<void> {
+  return sendLocalizedPayloads()
 }
 
 export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
@@ -60,5 +83,11 @@ export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
 export function seedInitHooks(options: MonitorOptions): void {
   if (options.beforeSend) {
     registerBeforeSend(options.beforeSend)
+  }
+  if (options.beforePushEvent) {
+    registerBeforePushEvent(options.beforePushEvent)
+  }
+  if (options.afterSend) {
+    registerAfterSend(options.afterSend)
   }
 }

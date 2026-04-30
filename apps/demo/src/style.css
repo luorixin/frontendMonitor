@@ -84,6 +84,7 @@ a {
 
 .controls button,
 .click-zone button,
+.click-zone input,
 .linkish {
   border: none;
   border-radius: 14px;
@@ -104,6 +105,10 @@ a {
   transform: translateY(-2px);
 }
 
+.click-zone input {
+  outline: none;
+}
+
 .click-zone {
   display: grid;
   gap: 12px;
@@ -117,6 +122,48 @@ a {
   display: inline-flex;
   justify-content: center;
   background: linear-gradient(135deg, #b39ddb, #82b1ff);
+}
+
+.exposure-panel {
+  margin-top: 18px;
+}
+
+.exposure-copy {
+  color: #b9c5db;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.exposure-spacer {
+  align-items: center;
+  border: 1px dashed rgba(143, 211, 255, 0.3);
+  border-radius: 18px;
+  color: #8fd3ff;
+  display: flex;
+  height: 280px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.exposure-card {
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(145deg, rgba(143, 211, 255, 0.18), rgba(255, 138, 61, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.28);
+  padding: 24px;
+}
+
+.exposure-card h3 {
+  font-size: 1.6rem;
+  margin: 0 0 12px;
+}
+
+.exposure-card p:last-child {
+  color: #d7dfef;
+  line-height: 1.7;
+  margin: 0;
 }
 
 pre {
