@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorIssueMapper">
+
+  <resultMap id="MonitorIssueResult" type="com.monitor.system.domain.monitor.MonitorIssue">
+    <id property="id" column="id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="issueType" column="issue_type"/>
+    <result property="fingerprint" column="fingerprint"/>
+    <result property="title" column="title"/>
+    <result property="firstSeenAt" column="first_seen_at"/>
+    <result property="lastSeenAt" column="last_seen_at"/>
+    <result property="occurrenceCount" column="occurrence_count"/>
+    <result property="latestEventId" column="latest_event_id"/>
+    <result property="status" column="status"/>
+    <result property="createTime" column="create_time"/>
+    <result property="updateTime" column="update_time"/>
+  </resultMap>
+
+  <sql id="selectMonitorIssue">
+    SELECT id, project_id, issue_type, fingerprint, title, first_seen_at, last_seen_at,
+           occurrence_count, latest_event_id, status, create_time, update_time
+    FROM monitor_issue
+  </sql>
+
+  <select id="selectIssueById" resultMap="MonitorIssueResult">
+    <include refid="selectMonitorIssue"/>
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectIssueByFingerprint" resultMap="MonitorIssueResult">
+    <include refid="selectMonitorIssue"/>
+    WHERE project_id = #{projectId}
+      AND fingerprint = #{fingerprint}
+  </select>
+
+  <select id="selectIssueList" resultMap="MonitorIssueResult">
+    <include refid="selectMonitorIssue"/>
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="issueType != null and issueType != ''">
+        AND issue_type = #{issueType}
+      </if>
+      <if test="status != null and status != ''">
+        AND status = #{status}
+      </if>
+      <if test="keyword != null and keyword != ''">
+        AND (
+          title LIKE CONCAT('%', #{keyword}, '%')
+          OR fingerprint LIKE CONCAT('%', #{keyword}, '%')
+        )
+      </if>
+      <if test="startTime != null">
+        AND last_seen_at <![CDATA[ >= ]]> #{startTime}
+      </if>
+      <if test="endTime != null">
+        AND last_seen_at <![CDATA[ <= ]]> #{endTime}
+      </if>
+    </where>
+    ORDER BY last_seen_at DESC, occurrence_count DESC
+  </select>
+
+  <select id="selectTopIssues" resultMap="MonitorIssueResult">
+    <include refid="selectMonitorIssue"/>
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="startTime != null">
+        AND last_seen_at <![CDATA[ >= ]]> #{startTime}
+      </if>
+      <if test="endTime != null">
+        AND last_seen_at <![CDATA[ <= ]]> #{endTime}
+      </if>
+    </where>
+    ORDER BY occurrence_count DESC, last_seen_at DESC
+    LIMIT 10
+  </select>
+
+  <insert id="insertIssue" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_issue (
+      project_id, issue_type, fingerprint, title, first_seen_at, last_seen_at,
+      occurrence_count, latest_event_id, status
+    ) VALUES (
+      #{projectId}, #{issueType}, #{fingerprint}, #{title}, #{firstSeenAt}, #{lastSeenAt},
+      #{occurrenceCount}, #{latestEventId}, #{status}
+    )
+  </insert>
+
+  <update id="updateIssueOccurrence">
+    UPDATE monitor_issue
+    SET title = #{title},
+        last_seen_at = #{lastSeenAt},
+        latest_event_id = #{latestEventId},
+        occurrence_count = occurrence_count + 1
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateIssueStatus">
+    UPDATE monitor_issue
+    SET status = #{status}
+    WHERE id = #{id}
+  </update>
+</mapper>

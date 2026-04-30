@@ -3,9 +3,13 @@ dist
 coverage
 .vite
 *.tsbuildinfo
-.omx/
+.omx
 .pnpm-store/
 */.nvm/
 **/.output/
 **/.nuxt/
 **/dist/
+**/target/
+.npmrc
+.DS_Store
+.idea/

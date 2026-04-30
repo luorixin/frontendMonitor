@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorEventMapper">
+
+  <resultMap id="MonitorEventResult" type="com.monitor.system.domain.monitor.MonitorEvent">
+    <id property="id" column="id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="issueId" column="issue_id"/>
+    <result property="eventId" column="event_id"/>
+    <result property="issueType" column="issue_type"/>
+    <result property="fingerprint" column="fingerprint"/>
+    <result property="eventType" column="event_type"/>
+    <result property="occurredAt" column="occurred_at"/>
+    <result property="appName" column="app_name"/>
+    <result property="appVersion" column="app_version"/>
+    <result property="userId" column="user_id"/>
+    <result property="deviceId" column="device_id"/>
+    <result property="sessionId" column="session_id"/>
+    <result property="pageId" column="page_id"/>
+    <result property="url" column="url"/>
+    <result property="title" column="title"/>
+    <result property="requestMethod" column="request_method"/>
+    <result property="requestStatus" column="request_status"/>
+    <result property="duration" column="duration"/>
+    <result property="message" column="message"/>
+    <result property="selector" column="selector"/>
+    <result property="resourceType" column="resource_type"/>
+    <result property="transport" column="transport"/>
+    <result property="eventName" column="event_name"/>
+    <result property="payloadJson" column="payload_json"/>
+    <result property="baseJson" column="base_json"/>
+    <result property="createTime" column="create_time"/>
+  </resultMap>
+
+  <sql id="selectMonitorEvent">
+    SELECT id, project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
+           app_name, app_version, user_id, device_id, session_id, page_id, url, title,
+           request_method, request_status, duration, message, selector, resource_type,
+           transport, event_name, payload_json, base_json, create_time
+    FROM monitor_event
+  </sql>
+
+  <insert id="insertEvent" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_event (
+      project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
+      app_name, app_version, user_id, device_id, session_id, page_id, url, title,
+      request_method, request_status, duration, message, selector, resource_type,
+      transport, event_name, payload_json, base_json
+    ) VALUES (
+      #{projectId}, #{issueId}, #{eventId}, #{issueType}, #{fingerprint}, #{eventType}, #{occurredAt},
+      #{appName}, #{appVersion}, #{userId}, #{deviceId}, #{sessionId}, #{pageId}, #{url}, #{title},
+      #{requestMethod}, #{requestStatus}, #{duration}, #{message}, #{selector}, #{resourceType},
+      #{transport}, #{eventName}, #{payloadJson}, #{baseJson}
+    )
+  </insert>
+
+  <select id="selectEventList" resultMap="MonitorEventResult">
+    <include refid="selectMonitorEvent"/>
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="issueId != null">
+        AND issue_id = #{issueId}
+      </if>
+      <if test="eventType != null and eventType != ''">
+        AND event_type = #{eventType}
+      </if>
+      <if test="issueType != null and issueType != ''">
+        AND issue_type = #{issueType}
+      </if>
+      <if test="appVersion != null and appVersion != ''">
+        AND app_version = #{appVersion}
+      </if>
+      <if test="userId != null and userId != ''">
+        AND user_id = #{userId}
+      </if>
+      <if test="sessionId != null and sessionId != ''">
+        AND session_id = #{sessionId}
+      </if>
+      <if test="deviceId != null and deviceId != ''">
+        AND device_id = #{deviceId}
+      </if>
+      <if test="url != null and url != ''">
+        AND url LIKE CONCAT('%', #{url}, '%')
+      </if>
+      <if test="keyword != null and keyword != ''">
+        AND (
+          message LIKE CONCAT('%', #{keyword}, '%')
+          OR event_name LIKE CONCAT('%', #{keyword}, '%')
+          OR url LIKE CONCAT('%', #{keyword}, '%')
+        )
+      </if>
+      <if test="startTime != null">
+        AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      </if>
+      <if test="endTime != null">
+        AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      </if>
+    </where>
+    ORDER BY occurred_at DESC, id DESC
+  </select>
+
+  <select id="selectEventById" resultMap="MonitorEventResult">
+    <include refid="selectMonitorEvent"/>
+    WHERE id = #{id}
+  </select>
+
+  <select id="countEvents" resultType="long">
+    SELECT COUNT(1)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+  </select>
+
+  <select id="countErrorEvents" resultType="long">
+    SELECT COUNT(1)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND event_type IN ('js_error', 'promise_rejection', 'console_error', 'resource_error', 'request_error')
+  </select>
+
+  <select id="countPageViews" resultType="long">
+    SELECT COUNT(1)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND event_type = 'page_view'
+  </select>
+
+  <select id="countDistinctSessions" resultType="long">
+    SELECT COUNT(DISTINCT session_id)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND session_id IS NOT NULL
+      AND session_id != ''
+  </select>
+
+  <select id="countDistinctUsers" resultType="long">
+    SELECT COUNT(DISTINCT user_id)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND user_id IS NOT NULL
+      AND user_id != ''
+  </select>
+
+  <select id="countDistinctDevices" resultType="long">
+    SELECT COUNT(DISTINCT device_id)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND device_id IS NOT NULL
+      AND device_id != ''
+  </select>
+
+  <select id="selectDistribution" resultType="com.monitor.system.domain.monitor.vo.MonitorEventTypeCountVo">
+    SELECT event_type AS eventType, COUNT(1) AS totalCount
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+    GROUP BY event_type
+    ORDER BY totalCount DESC
+  </select>
+
+  <select id="selectTopPages" resultType="com.monitor.system.domain.monitor.vo.MonitorPageStatsVo">
+    SELECT url,
+           COUNT(1) AS eventCount,
+           SUM(CASE
+             WHEN event_type IN ('js_error', 'promise_rejection', 'console_error', 'resource_error', 'request_error')
+             THEN 1 ELSE 0 END) AS errorCount
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      AND url IS NOT NULL
+      AND url != ''
+    GROUP BY url
+    ORDER BY eventCount DESC, errorCount DESC
+    LIMIT 10
+  </select>
+
+  <select id="selectIssueTrendByHour" resultType="com.monitor.system.domain.monitor.vo.MonitorTrendPointVo">
+    SELECT DATE_FORMAT(occurred_at, '%Y-%m-%d %H:00:00') AS bucket,
+           COUNT(1) AS totalCount
+    FROM monitor_event
+    WHERE issue_id = #{issueId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+    GROUP BY DATE_FORMAT(occurred_at, '%Y-%m-%d %H:00:00')
+    ORDER BY bucket ASC
+  </select>
+
+  <select id="selectIssueTrendByDay" resultType="com.monitor.system.domain.monitor.vo.MonitorTrendPointVo">
+    SELECT DATE_FORMAT(occurred_at, '%Y-%m-%d') AS bucket,
+           COUNT(1) AS totalCount
+    FROM monitor_event
+    WHERE issue_id = #{issueId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+    GROUP BY DATE_FORMAT(occurred_at, '%Y-%m-%d')
+    ORDER BY bucket ASC
+  </select>
+
+  <delete id="deleteEventsOlderThan">
+    DELETE FROM monitor_event
+    WHERE occurred_at <![CDATA[ < ]]> #{cutoff}
+  </delete>
+</mapper>

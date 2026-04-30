@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorProjectMapper">
+
+  <resultMap id="MonitorProjectResult" type="com.monitor.system.domain.monitor.MonitorProject">
+    <id property="id" column="id"/>
+    <result property="projectName" column="project_name"/>
+    <result property="projectKey" column="project_key"/>
+    <result property="appName" column="app_name"/>
+    <result property="appVersion" column="app_version"/>
+    <result property="status" column="status"/>
+    <result property="description" column="description"/>
+    <result property="allowedOrigins" column="allowed_origins"/>
+    <result property="createTime" column="create_time"/>
+    <result property="updateTime" column="update_time"/>
+  </resultMap>
+
+  <sql id="selectMonitorProject">
+    SELECT id, project_name, project_key, app_name, app_version, status, description,
+           allowed_origins, create_time, update_time
+    FROM monitor_project
+  </sql>
+
+  <select id="selectProjectList" resultMap="MonitorProjectResult">
+    <include refid="selectMonitorProject"/>
+    <where>
+      <if test="keyword != null and keyword != ''">
+        AND (
+          project_name LIKE CONCAT('%', #{keyword}, '%')
+          OR app_name LIKE CONCAT('%', #{keyword}, '%')
+          OR project_key LIKE CONCAT('%', #{keyword}, '%')
+        )
+      </if>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+    </where>
+    ORDER BY id DESC
+  </select>
+
+  <select id="selectProjectById" resultMap="MonitorProjectResult">
+    <include refid="selectMonitorProject"/>
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectProjectByKey" resultMap="MonitorProjectResult">
+    <include refid="selectMonitorProject"/>
+    WHERE project_key = #{projectKey}
+  </select>
+
+  <insert id="insertProject" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_project (
+      project_name, project_key, app_name, app_version, status, description, allowed_origins
+    ) VALUES (
+      #{projectName}, #{projectKey}, #{appName}, #{appVersion}, #{status}, #{description}, #{allowedOrigins}
+    )
+  </insert>
+
+  <update id="updateProject">
+    UPDATE monitor_project
+    SET project_name = #{projectName},
+        app_name = #{appName},
+        app_version = #{appVersion},
+        status = #{status},
+        description = #{description},
+        allowed_origins = #{allowedOrigins}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateProjectStatus">
+    UPDATE monitor_project
+    SET status = #{status}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateProjectKey">
+    UPDATE monitor_project
+    SET project_key = #{projectKey}
+    WHERE id = #{id}
+  </update>
+</mapper>

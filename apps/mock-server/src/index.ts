@@ -11,7 +11,8 @@ const port = 4318
 const events: StoredPayload[] = []
 
 const corsOptions = {
-  credentials: false,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
   methods: ["GET", "POST", "OPTIONS"],
   origin: true
 } as const

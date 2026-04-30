@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorAggregateMapper">
+
+  <insert id="upsertHourAggregate">
+    INSERT INTO monitor_event_agg_hour (
+      project_id, bucket_start, event_type, total_count, error_count, page_view_count
+    ) VALUES (
+      #{projectId}, #{bucketStart}, #{eventType}, #{totalCount}, #{errorCount}, #{pageViewCount}
+    )
+    ON DUPLICATE KEY UPDATE
+      total_count = total_count + VALUES(total_count),
+      error_count = error_count + VALUES(error_count),
+      page_view_count = page_view_count + VALUES(page_view_count)
+  </insert>
+
+  <insert id="upsertDayAggregate">
+    INSERT INTO monitor_event_agg_day (
+      project_id, event_date, event_type, total_count, error_count, page_view_count
+    ) VALUES (
+      #{projectId}, #{eventDate}, #{eventType}, #{totalCount}, #{errorCount}, #{pageViewCount}
+    )
+    ON DUPLICATE KEY UPDATE
+      total_count = total_count + VALUES(total_count),
+      error_count = error_count + VALUES(error_count),
+      page_view_count = page_view_count + VALUES(page_view_count)
+  </insert>
+
+  <select id="selectTrendByHour" resultType="com.monitor.system.domain.monitor.vo.MonitorTrendPointVo">
+    SELECT DATE_FORMAT(bucket_start, '%Y-%m-%d %H:00:00') AS bucket,
+           SUM(total_count) AS totalCount,
+           SUM(error_count) AS errorCount,
+           SUM(page_view_count) AS pageViewCount
+    FROM monitor_event_agg_hour
+    WHERE project_id = #{projectId}
+      AND bucket_start <![CDATA[ >= ]]> #{startTime}
+      AND bucket_start <![CDATA[ <= ]]> #{endTime}
+    GROUP BY bucket_start
+    ORDER BY bucket_start ASC
+  </select>
+
+  <select id="selectTrendByDay" resultType="com.monitor.system.domain.monitor.vo.MonitorTrendPointVo">
+    SELECT DATE_FORMAT(event_date, '%Y-%m-%d') AS bucket,
+           SUM(total_count) AS totalCount,
+           SUM(error_count) AS errorCount,
+           SUM(page_view_count) AS pageViewCount
+    FROM monitor_event_agg_day
+    WHERE project_id = #{projectId}
+      AND event_date <![CDATA[ >= ]]> #{startDate}
+      AND event_date <![CDATA[ <= ]]> #{endDate}
+    GROUP BY event_date
+    ORDER BY event_date ASC
+  </select>
+
+  <delete id="deleteHourAggregatesOlderThan">
+    DELETE FROM monitor_event_agg_hour
+    WHERE bucket_start <![CDATA[ < ]]> #{cutoff}
+  </delete>
+
+  <delete id="deleteDayAggregatesOlderThan">
+    DELETE FROM monitor_event_agg_day
+    WHERE event_date <![CDATA[ < ]]> #{cutoff}
+  </delete>
+</mapper>
