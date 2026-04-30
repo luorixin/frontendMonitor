@@ -1,0 +1,15 @@
+{
+  "name": "@frontend-monitor/examples-nuxt3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev --port 3001"
+  },
+  "dependencies": {
+    "@frontend-monitor/nuxt3": "workspace:*",
+    "nuxt": "^3.15.0",
+    "vue": "^3.5.13"
+  }
+}

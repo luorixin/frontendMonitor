@@ -1,0 +1,100 @@
+:root {
+  color: #edf1ff;
+  font-family: "IBM Plex Sans", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(255, 137, 109, 0.16), transparent 28%),
+    linear-gradient(145deg, #090f1d, #111d33 58%, #18344d);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font: inherit;
+  padding: 12px 14px;
+}
+
+.shell {
+  margin: 0 auto;
+  max-width: 1040px;
+  padding: 40px 20px 64px;
+}
+
+.panel {
+  backdrop-filter: blur(14px);
+  background: rgba(7, 12, 24, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.28);
+  padding: 20px;
+}
+
+.hero {
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  color: #ffb492;
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.hero h1,
+h2 {
+  margin: 0 0 12px;
+}
+
+.lede {
+  color: #b5c2db;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 18px;
+}
+
+.controls button {
+  background: linear-gradient(135deg, #ffb492, #8fd3ff);
+  color: #10243d;
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.fallback {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+pre {
+  background: rgba(2, 8, 20, 0.88);
+  border-radius: 16px;
+  color: #93f5c7;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 0;
+  min-height: 220px;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+}

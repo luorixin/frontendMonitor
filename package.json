@@ -2,15 +2,25 @@
   "name": "frontend-monitor",
   "private": true,
   "version": "0.1.0",
+  "description": "A browser monitoring SDK monorepo with core, Vue 3, React, and Nuxt 3 adapters.",
   "packageManager": "pnpm@9.12.3",
   "scripts": {
     "build": "pnpm -r build",
+    "changeset": "changeset",
+    "ci": "pnpm build && pnpm test",
     "dev": "pnpm -r --parallel --filter @frontend-monitor/mock-server --filter @frontend-monitor/demo dev",
     "dev:demo": "pnpm --filter @frontend-monitor/demo dev",
+    "dev:example:nuxt3": "pnpm --parallel --filter @frontend-monitor/mock-server --filter @frontend-monitor/examples-nuxt3 dev",
+    "dev:example:react": "pnpm --parallel --filter @frontend-monitor/mock-server --filter @frontend-monitor/examples-react dev",
+    "dev:example:vue3": "pnpm --parallel --filter @frontend-monitor/mock-server --filter @frontend-monitor/examples-vue3 dev",
     "dev:mock": "pnpm --filter @frontend-monitor/mock-server dev",
-    "test": "pnpm --filter @frontend-monitor/core test"
+    "publish-packages": "changeset publish",
+    "release": "pnpm build && pnpm test && pnpm publish-packages",
+    "test": "pnpm --filter @frontend-monitor/core --filter @frontend-monitor/vue3 --filter @frontend-monitor/react --filter @frontend-monitor/nuxt3 test",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.1",
     "jsdom": "^25.0.1",
@@ -23,5 +33,13 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luorixin/frontendMonitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/luorixin/frontendMonitor/issues"
+  },
+  "homepage": "https://github.com/luorixin/frontendMonitor#readme"
 }

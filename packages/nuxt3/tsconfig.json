@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@frontend-monitor/core": ["../core/src/index.ts"],
+      "@frontend-monitor/vue3": ["../vue3/src/index.ts"]
+    },
+    "rootDir": ".."
+  },
+  "include": ["src", "tsup.config.ts"]
+}

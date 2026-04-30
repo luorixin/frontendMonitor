@@ -1,8 +1,8 @@
 {
-  "name": "@frontend-monitor/core",
+  "name": "@frontend-monitor/vue3",
   "version": "0.1.0",
   "private": false,
-  "description": "Core browser monitoring SDK for frontend-monitor.",
+  "description": "Vue 3 adapter for the frontend-monitor browser SDK.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -17,6 +17,12 @@
       "default": "./dist/index.js"
     }
   },
+  "dependencies": {
+    "@frontend-monitor/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -24,18 +30,18 @@
     "monitoring",
     "frontend",
     "sdk",
-    "tracing",
-    "web-vitals"
+    "vue3",
+    "tracing"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/luorixin/frontendMonitor.git",
-    "directory": "packages/core"
+    "directory": "packages/vue3"
   },
   "bugs": {
     "url": "https://github.com/luorixin/frontendMonitor/issues"
   },
-  "homepage": "https://github.com/luorixin/frontendMonitor/tree/master/packages/core",
+  "homepage": "https://github.com/luorixin/frontendMonitor/tree/master/packages/vue3",
   "scripts": {
     "build": "tsup",
     "test": "vitest run --config vitest.config.ts"

@@ -6,3 +6,6 @@ coverage
 .omx/
 .pnpm-store/
 */.nvm/
+**/.output/
+**/.nuxt/
+**/dist/
