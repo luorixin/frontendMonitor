@@ -1,5 +1,6 @@
 import type {
   AfterSendHandler,
+  Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
   MonitorEvent,
@@ -27,6 +28,8 @@ export type MonitorState = {
   afterSendHooks: AfterSendHandler[]
   beforePushEventHooks: BeforePushEventHandler[]
   beforeSendHooks: BeforeSendHandler[]
+  breadcrumbs: Breadcrumb[]
+  contexts: Record<string, unknown>
   initialized: boolean
   lastClickAt: number
   networkStatus: NetworkStatus
@@ -39,14 +42,18 @@ export type MonitorState = {
   pageId: string
   pageStartTime: number
   queue: MonitorEvent[]
+  retryTimer: ReturnType<typeof setTimeout> | null
   sessionId: string
+  tags: Record<string, string>
 }
 
 export const state: MonitorState = {
   afterSendHooks: [],
   beforePushEventHooks: [],
   beforeSendHooks: [],
+  breadcrumbs: [],
   cleanups: [],
+  contexts: {},
   consoleErrorOriginal: null,
   currentRoute: "",
   deviceId: "",
@@ -65,7 +72,9 @@ export const state: MonitorState = {
   pageId: "",
   pageStartTime: 0,
   queue: [],
-  sessionId: ""
+  retryTimer: null,
+  sessionId: "",
+  tags: {}
 }
 
 export function addCleanup(cleanup: CleanupFn): void {
@@ -87,6 +96,8 @@ export function resetState(): void {
   state.afterSendHooks = []
   state.beforePushEventHooks = []
   state.beforeSendHooks = []
+  state.breadcrumbs = []
+  state.contexts = {}
   state.currentRoute = ""
   state.deviceId = ""
   state.errorScope.clear()
@@ -104,5 +115,7 @@ export function resetState(): void {
   state.pageId = ""
   state.pageStartTime = 0
   state.queue = []
+  state.retryTimer = clearTimer(state.retryTimer)
   state.sessionId = ""
+  state.tags = {}
 }

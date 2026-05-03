@@ -1,5 +1,7 @@
 import {
+  addBreadcrumb,
   captureError,
+  clearContext,
   flush,
   getOptions,
   init,
@@ -7,6 +9,10 @@ import {
   intersectionObserver,
   intersectionUnobserve,
   sendLocal,
+  setContext,
+  setEnvironment,
+  setRelease,
+  setTag,
   setUser,
   track
 } from "frontend-monitor-core"
@@ -22,6 +28,8 @@ export type Vue3TracingPluginOptions = MonitorOptions & {
 
 type WebTracingApi = {
   captureError: typeof captureError
+  addBreadcrumb: typeof addBreadcrumb
+  clearContext: typeof clearContext
   flush: typeof flush
   getOptions: typeof getOptions
   init: typeof init
@@ -29,12 +37,18 @@ type WebTracingApi = {
   intersectionObserver: typeof intersectionObserver
   intersectionUnobserve: typeof intersectionUnobserve
   sendLocal: typeof sendLocal
+  setContext: typeof setContext
+  setEnvironment: typeof setEnvironment
+  setRelease: typeof setRelease
+  setTag: typeof setTag
   setUser: typeof setUser
   track: typeof track
 }
 
 const tracingApi: WebTracingApi = {
   captureError,
+  addBreadcrumb,
+  clearContext,
   flush,
   getOptions,
   init,
@@ -42,6 +56,10 @@ const tracingApi: WebTracingApi = {
   intersectionObserver,
   intersectionUnobserve,
   sendLocal,
+  setContext,
+  setEnvironment,
+  setRelease,
+  setTag,
   setUser,
   track
 }

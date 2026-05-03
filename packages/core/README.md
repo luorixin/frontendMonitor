@@ -68,6 +68,13 @@ captureError(new Error("manual error"))
 | `maxQueueLength` | `number` | `200` | 内存队列最大长度。超出后会丢弃最早的事件，保留最新事件。 |
 | `timeout` | `number` | `5000` | 网络发送超时时间，单位毫秒。主要用于 `xhr/fetch` 发送链路。 |
 | `ignoreUrls` | `Array<string \\| RegExp>` | `[] + dsn` | 需要忽略的请求地址。匹配到的 `fetch/xhr` 请求不会进入监控事件。SDK 会自动追加当前 `dsn`。 |
+| `offlineRetry` | `boolean` | `true` | 离线或发送失败时把 payload 写入本地队列，在线后自动重试。 |
+| `offlineQueueKey` | `string` | `__frontend_monitor_offline__` | 自动离线重试队列的 `localStorage` key。 |
+| `retryMaxAttempts` | `number` | `3` | 自动重试最大次数。 |
+| `retryBaseDelay` | `number` | `1000` | 自动重试基础退避时间，单位毫秒。 |
+| `maxPayloadBytes` | `number` | `65536` | 单次 payload 最大字节数，超出后不再尝试传输。 |
+| `maxOfflinePayloads` | `number` | `50` | 自动离线重试队列最多保留的 payload 数。 |
+| `maxBreadcrumbs` | `number` | `50` | payload 中最多携带的 breadcrumb 数。 |
 
 ### 采集开关
 
@@ -105,6 +112,19 @@ captureError(new Error("manual error"))
 - `localization = true` 时，`flush()` 触发的是“写入本地”，不是“立即联网发送”。
 - 真正发送本地缓存需要手动调用 `sendLocal()`。
 - `sendLocal()` 会逐条发送；失败的数据会保留，成功的数据会被移除。
+
+### 诊断上下文
+
+初始化时可传入 `release`、`environment`、`tags`、`contexts`，运行时也可通过：
+
+- `setRelease(release)`
+- `setEnvironment(environment)`
+- `setTag(key, value)`
+- `setContext(key, value)`
+- `addBreadcrumb(breadcrumb)`
+- `clearContext()`
+
+SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcrumbs，随下一次 payload 上报。
 
 ### 错误聚合
 

@@ -18,4 +18,7 @@ public class MonitorIssue extends BaseEntity {
   private Long occurrenceCount;
   private String latestEventId;
   private String status;
+  private String assignee;
+  private String priority;
+  private Long commentCount;
 }

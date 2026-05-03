@@ -1,10 +1,12 @@
 import { state } from "../context"
+import { scheduleOfflineReplay } from "../offline"
 import { debugLog } from "../queue"
 
 export function initNetworkStatusCapture(): void {
   const onOnline = () => {
     state.networkStatus = "online"
     debugLog("network status: online")
+    scheduleOfflineReplay()
   }
 
   const onOffline = () => {

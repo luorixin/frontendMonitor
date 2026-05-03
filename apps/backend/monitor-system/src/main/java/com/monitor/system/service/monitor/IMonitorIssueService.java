@@ -18,4 +18,6 @@ public interface IMonitorIssueService {
   List<MonitorTrendPointVo> selectIssueTrend(Long issueId, MonitorDashboardQuery query);
 
   void updateIssueStatus(Long id, String status);
+
+  void updateIssueAssignment(Long id, String assignee, String priority);
 }

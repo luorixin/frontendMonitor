@@ -1,4 +1,5 @@
 import { state } from "../context"
+import { recordBreadcrumb } from "../breadcrumb"
 import { enqueueEvent } from "../queue"
 import { debugLog } from "../queue"
 import type { ConsoleErrorEventPayload } from "../types"
@@ -18,6 +19,15 @@ export function initConsoleErrorCapture(): Array<() => void> {
     const stringified = args.map(arg =>
       typeof arg === "string" ? arg : safeStringify(arg)
     )
+
+    recordBreadcrumb({
+      data: {
+        args: stringified
+      },
+      level: "error",
+      message: stringified.join(" | "),
+      type: "console"
+    })
 
     enqueueEvent({
       args: stringified,

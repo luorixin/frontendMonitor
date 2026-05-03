@@ -14,13 +14,17 @@
     <result property="occurrenceCount" column="occurrence_count"/>
     <result property="latestEventId" column="latest_event_id"/>
     <result property="status" column="status"/>
+    <result property="assignee" column="assignee"/>
+    <result property="priority" column="priority"/>
+    <result property="commentCount" column="comment_count"/>
     <result property="createTime" column="create_time"/>
     <result property="updateTime" column="update_time"/>
   </resultMap>
 
   <sql id="selectMonitorIssue">
     SELECT id, project_id, issue_type, fingerprint, title, first_seen_at, last_seen_at,
-           occurrence_count, latest_event_id, status, create_time, update_time
+           occurrence_count, latest_event_id, status, assignee, priority, comment_count,
+           create_time, update_time
     FROM monitor_issue
   </sql>
 
@@ -83,10 +87,10 @@
   <insert id="insertIssue" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO monitor_issue (
       project_id, issue_type, fingerprint, title, first_seen_at, last_seen_at,
-      occurrence_count, latest_event_id, status
+      occurrence_count, latest_event_id, status, priority, comment_count
     ) VALUES (
       #{projectId}, #{issueType}, #{fingerprint}, #{title}, #{firstSeenAt}, #{lastSeenAt},
-      #{occurrenceCount}, #{latestEventId}, #{status}
+      #{occurrenceCount}, #{latestEventId}, #{status}, 'MEDIUM', 0
     )
   </insert>
 
@@ -102,6 +106,13 @@
   <update id="updateIssueStatus">
     UPDATE monitor_issue
     SET status = #{status}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateIssueAssignment">
+    UPDATE monitor_issue
+    SET assignee = #{assignee},
+        priority = #{priority}
     WHERE id = #{id}
   </update>
 </mapper>

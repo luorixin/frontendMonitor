@@ -15,11 +15,11 @@ INSERT INTO monitor_project (
 )
 VALUES (
   1,
-  'US Web Site',
-  'us-site-web',
-  'us-site-web',
+  'Demo Project',
+  'demo-project-key',
+  'frontend-monitor-demo',
   '0.1.0',
   1,
   'Seeded demo project for local frontend-monitor integration.',
-  '["http://localhost:8080","http://localhost:4174","http://localhost:4175","http://localhost:3000","http://localhost:3001"]'
+  '["http://localhost:8080","http://localhost:4173","http://localhost:4174","http://localhost:4175","http://localhost:3000","http://localhost:3001"]'
 );

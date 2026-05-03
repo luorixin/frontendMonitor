@@ -15,6 +15,15 @@ export type LocalizationOverflowHandler = (error: Error) => void
 
 export type NetworkStatus = "online" | "offline"
 
+export type Breadcrumb = {
+  category?: string
+  data?: Record<string, unknown>
+  level?: "debug" | "info" | "warning" | "error"
+  message: string
+  timestamp: number
+  type?: "click" | "console" | "manual" | "navigation" | "request"
+}
+
 export type CaptureOptions = {
   jsError?: boolean
   promiseRejection?: boolean
@@ -46,6 +55,17 @@ export type MonitorOptions = {
   localization?: boolean
   localizationKey?: string
   localizationOverflow?: LocalizationOverflowHandler
+  offlineRetry?: boolean
+  offlineQueueKey?: string
+  retryMaxAttempts?: number
+  retryBaseDelay?: number
+  maxPayloadBytes?: number
+  maxOfflinePayloads?: number
+  maxBreadcrumbs?: number
+  environment?: string
+  release?: string
+  tags?: Record<string, string>
+  contexts?: Record<string, unknown>
   scopeError?: boolean
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
@@ -68,6 +88,17 @@ export type ResolvedMonitorOptions = {
   localization: boolean
   localizationKey: string
   localizationOverflow?: LocalizationOverflowHandler
+  offlineRetry: boolean
+  offlineQueueKey: string
+  retryMaxAttempts: number
+  retryBaseDelay: number
+  maxPayloadBytes: number
+  maxOfflinePayloads: number
+  maxBreadcrumbs: number
+  environment?: string
+  release?: string
+  tags: Record<string, string>
+  contexts: Record<string, unknown>
   scopeError: boolean
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
@@ -89,6 +120,13 @@ export type BasePayload = {
     height: number
   }
   sdkVersion: string
+  environment?: string
+  release?: string
+  tags?: Record<string, string>
+  contexts?: Record<string, unknown>
+  breadcrumbs?: Breadcrumb[]
+  traceId?: string
+  spanId?: string
   timestamp: number
 }
 
@@ -247,10 +285,11 @@ export type TransportResult = {
   success: boolean
   transport: "beacon" | "image" | "xhr"
   status?: number
-  reason?: "beacon_failed" | "image_failed" | "xhr_failed" | "network_error" | "unknown"
+  reason?: "beacon_failed" | "image_failed" | "xhr_failed" | "network_error" | "payload_too_large" | "unknown"
 }
 
 export type SendPayloadOptions = {
+  maxPayloadBytes?: number
   preferBeacon?: boolean
   timeout?: number
 }

@@ -1,5 +1,6 @@
 import { enqueueEvent, debugLog } from "../queue"
 import { state } from "../context"
+import { recordBreadcrumb } from "../breadcrumb"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../types"
@@ -38,9 +39,19 @@ export function initFetchCapture(): void {
             url: requestUrl
           }))
         }
-      } else {
-        if (state.options?.capture.fetchError) {
-          enqueueEvent(
+	      } else {
+	        if (state.options?.capture.fetchError) {
+	          recordBreadcrumb({
+	            data: {
+	              method,
+	              status: response.status,
+	              url: requestUrl
+	            },
+	            level: "error",
+	            message: `${method} ${requestUrl} failed with ${response.status}`,
+	            type: "request"
+	          })
+	          enqueueEvent(
             createRequestErrorEvent({
               duration,
               method,
@@ -53,9 +64,18 @@ export function initFetchCapture(): void {
       }
 
       return response
-    } catch (error) {
-      if (state.options?.capture.fetchError) {
-        enqueueEvent(
+	    } catch (error) {
+	      if (state.options?.capture.fetchError) {
+	        recordBreadcrumb({
+	          data: {
+	            method,
+	            url: requestUrl
+	          },
+	          level: "error",
+	          message: `${method} ${requestUrl} failed`,
+	          type: "request"
+	        })
+	        enqueueEvent(
           createRequestErrorEvent({
             duration: now() - start,
             errorMessage:

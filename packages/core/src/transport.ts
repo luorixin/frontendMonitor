@@ -15,6 +15,14 @@ export async function sendPayload(
 ): Promise<TransportResult> {
   const body = safeStringify(payload)
 
+  if (options.maxPayloadBytes !== undefined && body.length > options.maxPayloadBytes) {
+    return {
+      reason: "payload_too_large",
+      success: false,
+      transport: "xhr"
+    }
+  }
+
   if (options.preferBeacon) {
     const beaconResult = trySendBeacon(dsn, body)
     if (beaconResult.success) {

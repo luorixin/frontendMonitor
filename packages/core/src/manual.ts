@@ -1,4 +1,5 @@
 import { state } from "./context"
+import { recordBreadcrumb } from "./breadcrumb"
 import {
   registerAfterSend,
   registerBeforePushEvent,
@@ -8,6 +9,7 @@ import { sendLocal as sendLocalizedPayloads } from "./localization"
 import { enqueueEvent, flushQueue } from "./queue"
 import type {
   AfterSendHandler,
+  Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
   MonitorOptions,
@@ -50,6 +52,37 @@ export function setUser(userId: string): void {
   state.options.userId = userId
 }
 
+export function setRelease(release: string): void {
+  if (!state.options) return
+  state.options.release = release
+}
+
+export function setEnvironment(environment: string): void {
+  if (!state.options) return
+  state.options.environment = environment
+}
+
+export function setTag(key: string, value: string): void {
+  if (!key) return
+  state.tags[key] = value
+}
+
+export function setContext(key: string, value: unknown): void {
+  if (!key) return
+  state.contexts[key] = value
+}
+
+export function clearContext(): void {
+  state.tags = {}
+  state.contexts = {}
+}
+
+export function addBreadcrumb(
+  breadcrumb: Omit<Breadcrumb, "timestamp"> & { timestamp?: number }
+): void {
+  recordBreadcrumb(breadcrumb)
+}
+
 export function beforeSend(handler: BeforeSendHandler): void {
   registerBeforeSend(handler)
 }
@@ -73,11 +106,13 @@ export function sendLocal(): Promise<void> {
 export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
   if (!state.options) return null
 
-  return {
-    ...state.options,
-    capture: { ...state.options.capture },
-    ignoreUrls: [...state.options.ignoreUrls]
-  }
+	  return {
+	    ...state.options,
+	    capture: { ...state.options.capture },
+	    contexts: { ...state.options.contexts },
+	    tags: { ...state.options.tags },
+	    ignoreUrls: [...state.options.ignoreUrls]
+	  }
 }
 
 export function seedInitHooks(options: MonitorOptions): void {
@@ -87,7 +122,9 @@ export function seedInitHooks(options: MonitorOptions): void {
   if (options.beforePushEvent) {
     registerBeforePushEvent(options.beforePushEvent)
   }
-  if (options.afterSend) {
-    registerAfterSend(options.afterSend)
-  }
-}
+	  if (options.afterSend) {
+	    registerAfterSend(options.afterSend)
+	  }
+	  state.tags = { ...(state.options?.tags ?? {}) }
+	  state.contexts = { ...(state.options?.contexts ?? {}) }
+	}

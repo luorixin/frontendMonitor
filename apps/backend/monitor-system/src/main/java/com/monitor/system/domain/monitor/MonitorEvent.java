@@ -18,6 +18,8 @@ public class MonitorEvent extends BaseEntity {
   private LocalDateTime occurredAt;
   private String appName;
   private String appVersion;
+  private String environment;
+  private String release;
   private String userId;
   private String deviceId;
   private String sessionId;
@@ -32,6 +34,11 @@ public class MonitorEvent extends BaseEntity {
   private String resourceType;
   private String transport;
   private String eventName;
+  private String tagsJson;
+  private String contextsJson;
+  private String breadcrumbsJson;
+  private String traceId;
+  private String spanId;
   private String payloadJson;
   private String baseJson;
 }

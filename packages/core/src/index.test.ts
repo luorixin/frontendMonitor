@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   beforeSend,
+  addBreadcrumb,
   captureError,
+  clearContext,
   destroy,
   flush,
   getOptions,
@@ -9,6 +11,10 @@ import {
   intersectionObserver,
   intersectionUnobserve,
   sendLocal,
+  setContext,
+  setEnvironment,
+  setRelease,
+  setTag,
   setUser,
   track
 } from "./index"
@@ -759,6 +765,139 @@ describe("frontend-monitor-core", () => {
     await flush()
 
     expect(sentPayloads[0]?.base.userId).toBe("user-001")
+  })
+
+  it("persists offline events and retries them when the browser comes online", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      offlineQueueKey: "__test_offline_payloads__",
+      offlineRetry: true,
+      retryBaseDelay: 10
+    })
+
+    window.dispatchEvent(new Event("offline"))
+    track("offline-event", { step: "cached" }, true)
+    await flush()
+
+    expect(sentPayloads).toHaveLength(0)
+    expect(
+      JSON.parse(window.localStorage.getItem("__test_offline_payloads__") ?? "[]")
+    ).toHaveLength(1)
+
+    window.dispatchEvent(new Event("online"))
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(sentPayloads).toHaveLength(1)
+    expect(window.localStorage.getItem("__test_offline_payloads__")).toBeNull()
+  })
+
+  it("drops payloads that exceed maxPayloadBytes before transport", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      maxPayloadBytes: 120
+    })
+
+    track("large-blocked", { blob: "x".repeat(500) }, true)
+    await flush()
+
+    expect(imageRequests).toHaveLength(0)
+    expect(xhrPayloadBodies).toHaveLength(0)
+    expect(sentPayloads).toHaveLength(0)
+  })
+
+  it("adds release environment tags contexts and bounded breadcrumbs to payload base", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      maxBreadcrumbs: 2
+    })
+
+    setRelease("1.2.3")
+    setEnvironment("production")
+    setTag("region", "us")
+    setContext("device", { memory: "8g" })
+    addBreadcrumb({ message: "first" })
+    addBreadcrumb({ message: "second" })
+    addBreadcrumb({ message: "third" })
+    track("context-event", undefined, true)
+    await flush()
+
+    const base = sentPayloads[0]?.base
+    expect(base?.release).toBe("1.2.3")
+    expect(base?.environment).toBe("production")
+    expect(base?.tags).toEqual({ region: "us" })
+    expect(base?.contexts).toEqual({ device: { memory: "8g" } })
+    expect(base?.breadcrumbs).toMatchObject([
+      { message: "second" },
+      { message: "third" }
+    ])
+
+    clearContext()
+    track("context-cleared", undefined, true)
+    await flush()
+    expect(sentPayloads[1]?.base.tags).toBeUndefined()
+    expect(sentPayloads[1]?.base.contexts).toBeUndefined()
+  })
+
+  it("records automatic breadcrumbs for clicks and failed requests", async () => {
+    document.body.innerHTML = `<button id="checkout">Checkout</button>`
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: true,
+        fetchError: true,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    document.querySelector("#checkout")?.dispatchEvent(
+      new MouseEvent("click", { bubbles: true })
+    )
+    await window.fetch("http://localhost:3000/bad-request")
+    captureError(new Error("checkout failed"), undefined, true)
+    await flush()
+
+    const errorPayload = sentPayloads.find(payload =>
+      payload.events.some(event => event.type === "js_error")
+    )
+    expect(errorPayload?.base.breadcrumbs).toMatchObject([
+      { message: "Click button#checkout", type: "click" },
+      { message: "GET http://localhost:3000/bad-request failed with 404", type: "request" }
+    ])
   })
 
   it("captures failed xhr requests", async () => {

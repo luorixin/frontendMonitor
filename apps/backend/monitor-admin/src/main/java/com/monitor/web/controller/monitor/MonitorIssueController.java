@@ -5,6 +5,7 @@ import com.github.pagehelper.PageHelper;
 import com.monitor.core.domain.ApiResponse;
 import com.monitor.core.domain.TableDataInfo;
 import com.monitor.system.domain.monitor.MonitorEvent;
+import com.monitor.system.domain.monitor.dto.MonitorIssueAssignmentBody;
 import com.monitor.system.domain.monitor.dto.MonitorIssueStatusBody;
 import com.monitor.system.domain.monitor.query.MonitorDashboardQuery;
 import com.monitor.system.domain.monitor.query.MonitorEventQuery;
@@ -61,6 +62,15 @@ public class MonitorIssueController {
       @Valid @RequestBody MonitorIssueStatusBody body
   ) {
     issueService.updateIssueStatus(id, body.getStatus());
+    return ApiResponse.ok("OK", null);
+  }
+
+  @PostMapping("/{id}/assignment")
+  public ApiResponse<Void> updateAssignment(
+      @PathVariable("id") Long id,
+      @RequestBody MonitorIssueAssignmentBody body
+  ) {
+    issueService.updateIssueAssignment(id, body.getAssignee(), body.getPriority());
     return ApiResponse.ok("OK", null);
   }
 }

@@ -30,6 +30,13 @@ public interface MonitorEventMapper {
       @Param("endTime") LocalDateTime endTime
   );
 
+  long countEventsByType(
+      @Param("projectId") Long projectId,
+      @Param("eventType") String eventType,
+      @Param("startTime") LocalDateTime startTime,
+      @Param("endTime") LocalDateTime endTime
+  );
+
   long countPageViews(
       @Param("projectId") Long projectId,
       @Param("startTime") LocalDateTime startTime,
