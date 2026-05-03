@@ -26,7 +26,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "app.monitor.collect.max-events-per-request=2",
+    "app.monitor.collect.max-payload-bytes=10000",
+    "app.monitor.collect.max-image-data-bytes=300",
+    "app.monitor.collect.rate-limit-per-minute=1000"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class MonitorModuleIntegrationTest {
@@ -124,6 +129,103 @@ class MonitorModuleIntegrationTest {
   }
 
   @Test
+  void shouldRejectCollectFromDisallowedOrigin() throws Exception {
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://evil.example/demo", "Demo", "device-1", "session-1", "page-1"),
+        "events", List.of(
+            Map.of(
+                "type", "custom",
+                "eventName", "demo",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://evil.example/demo"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Origin", "http://evil.example")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.message").value("monitor.errors.originNotAllowed"));
+  }
+
+  @Test
+  void shouldRejectCollectBatchThatExceedsConfiguredLimit() throws Exception {
+    Map<String, Object> event = Map.of(
+        "type", "custom",
+        "eventName", "oversized",
+        "timestamp", System.currentTimeMillis(),
+        "url", "http://localhost/demo"
+    );
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost/demo", "Demo", "device-1", "session-1", "page-1"),
+        "events", List.of(event, event, event)
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value("monitor.errors.tooManyEvents"));
+  }
+
+  @Test
+  void shouldPersistDiagnosticContextAndFilterByReleaseEnvironment() throws Exception {
+    Map<String, Object> base = basePayload(
+        "http://localhost:4173/demo-context",
+        "Demo Context",
+        "device-context",
+        "session-context",
+        "page-context"
+    );
+    base.put("release", "1.2.3");
+    base.put("environment", "production");
+    base.put("tags", Map.of("region", "us"));
+    base.put("contexts", Map.of("device", Map.of("memory", "8g")));
+    base.put("breadcrumbs", List.of(Map.of(
+        "message", "clicked checkout",
+        "type", "click",
+        "timestamp", System.currentTimeMillis()
+    )));
+
+    Map<String, Object> payload = Map.of(
+        "base", base,
+        "events", List.of(
+            Map.of(
+                "type", "js_error",
+                "message", "context error",
+                "stack", "Error: context error\n    at demo.js:1:1",
+                "timestamp", System.currentTimeMillis(),
+                "traceId", "trace-001",
+                "spanId", "span-001",
+                "url", "http://localhost:4173/demo-context"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/v1/monitor/events")
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .param("environment", "production")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.rows[0].release").value("1.2.3"))
+        .andExpect(jsonPath("$.rows[0].environment").value("production"))
+        .andExpect(jsonPath("$.rows[0].tagsJson").exists())
+        .andExpect(jsonPath("$.rows[0].contextsJson").exists())
+        .andExpect(jsonPath("$.rows[0].breadcrumbsJson").exists())
+        .andExpect(jsonPath("$.rows[0].traceId").value("trace-001"))
+        .andExpect(jsonPath("$.rows[0].spanId").value("span-001"));
+  }
+
+  @Test
   void shouldReturnGifForImageCollect() throws Exception {
     String data = objectMapper.writeValueAsString(Map.of(
         "base", basePayload("http://localhost/demo-image", "Demo Image", "device-2", "session-2", "page-2"),
@@ -156,5 +258,57 @@ class MonitorModuleIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.total", greaterThanOrEqualTo(1)))
         .andExpect(jsonPath("$.rows[0].projectKey").exists());
+  }
+
+  @Test
+  void shouldCreateEvaluateAndListAlertRecords() throws Exception {
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/alert", "Alert", "device-alert", "session-alert", "page-alert"),
+        "events", List.of(
+            Map.of(
+                "type", "js_error",
+                "message", "alert error",
+                "stack", "Error: alert error\n    at alert.js:1:1",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/alert"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk());
+
+    String response = mockMvc.perform(post("/api/v1/monitor/alerts/rules")
+            .with(user("admin"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(Map.of(
+                "projectId", 1,
+                "name", "JS error spike",
+                "eventType", "js_error",
+                "thresholdCount", 1,
+                "windowMinutes", 60,
+                "enabled", true
+            ))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.id").exists())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+
+    Long ruleId = objectMapper.readTree(response).get("data").get("id").asLong();
+
+    mockMvc.perform(post("/api/v1/monitor/alerts/rules/" + ruleId + "/test")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.triggered").value(true));
+
+    mockMvc.perform(get("/api/v1/monitor/alerts/records")
+            .param("projectId", "1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.total", greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.rows[0].ruleId").value(ruleId));
   }
 }

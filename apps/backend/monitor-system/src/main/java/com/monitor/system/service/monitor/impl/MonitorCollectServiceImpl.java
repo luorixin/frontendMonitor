@@ -18,11 +18,13 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,25 +44,32 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
   private final MonitorEventMapper eventMapper;
   private final MonitorAggregateMapper aggregateMapper;
   private final ObjectMapper objectMapper;
+  private final int maxEventsPerRequest;
+  private final int maxPayloadBytes;
 
   public MonitorCollectServiceImpl(
       MonitorProjectMapper projectMapper,
       MonitorIssueMapper issueMapper,
       MonitorEventMapper eventMapper,
       MonitorAggregateMapper aggregateMapper,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      @Value("${app.monitor.collect.max-events-per-request:100}") int maxEventsPerRequest,
+      @Value("${app.monitor.collect.max-payload-bytes:262144}") int maxPayloadBytes
   ) {
     this.projectMapper = projectMapper;
     this.issueMapper = issueMapper;
     this.eventMapper = eventMapper;
     this.aggregateMapper = aggregateMapper;
     this.objectMapper = objectMapper;
+    this.maxEventsPerRequest = Math.max(1, maxEventsPerRequest);
+    this.maxPayloadBytes = Math.max(1024, maxPayloadBytes);
   }
 
   @Override
   @Transactional
-  public int collect(String projectKey, MonitorCollectRequest request) {
+  public int collect(String projectKey, MonitorCollectRequest request, String origin) {
     MonitorProject project = requireCollectProject(projectKey);
+    validateCollectRequest(project, request, origin);
     String baseJson = writeJson(request.getBase());
     int received = 0;
 
@@ -86,7 +95,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     }
     try {
       MonitorCollectRequest request = objectMapper.readValue(data, MonitorCollectRequest.class);
-      return collect(projectKey, request);
+      return collect(projectKey, request, null);
     } catch (JsonProcessingException e) {
       return 0;
     }
@@ -101,6 +110,47 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       throw new ServiceException(403, "monitor.errors.projectDisabled");
     }
     return project;
+  }
+
+  private void validateCollectRequest(
+      MonitorProject project,
+      MonitorCollectRequest request,
+      String origin
+  ) {
+    if (request.getEvents().size() > maxEventsPerRequest) {
+      throw new ServiceException(400, "monitor.errors.tooManyEvents");
+    }
+    if (writeJson(request).length() > maxPayloadBytes) {
+      throw new ServiceException(400, "monitor.errors.payloadTooLarge");
+    }
+    if (!isOriginAllowed(project, origin)) {
+      throw new ServiceException(403, "monitor.errors.originNotAllowed");
+    }
+  }
+
+  private boolean isOriginAllowed(MonitorProject project, String origin) {
+    if (origin == null || origin.isBlank()) {
+      return true;
+    }
+    List<String> allowedOrigins = readAllowedOrigins(project.getAllowedOrigins());
+    if (allowedOrigins.isEmpty()) {
+      return true;
+    }
+    return allowedOrigins.contains("*") || allowedOrigins.contains(origin);
+  }
+
+  private List<String> readAllowedOrigins(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return Collections.emptyList();
+    }
+    try {
+      return objectMapper.readValue(
+          raw,
+          objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+      );
+    } catch (JsonProcessingException e) {
+      throw new ServiceException("monitor.errors.invalidAllowedOrigins");
+    }
   }
 
   private MonitorEvent buildEvent(
@@ -122,6 +172,8 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     event.setOccurredAt(resolveOccurredAt(node, base));
     event.setAppName(base.getAppName());
     event.setAppVersion(base.getAppVersion());
+    event.setEnvironment(base.getEnvironment());
+    event.setRelease(base.getRelease());
     event.setUserId(base.getUserId());
     event.setDeviceId(base.getDeviceId());
     event.setSessionId(base.getSessionId());
@@ -136,6 +188,11 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     event.setDuration(resolveLong(node, "duration"));
     event.setTransport(text(node, "transport"));
     event.setEventName(resolveEventName(eventType, node));
+    event.setTagsJson(writeNullableJson(base.getTags()));
+    event.setContextsJson(writeNullableJson(base.getContexts()));
+    event.setBreadcrumbsJson(writeNullableJson(base.getBreadcrumbs()));
+    event.setTraceId(text(node, "traceId"));
+    event.setSpanId(text(node, "spanId"));
     event.setPayloadJson(writeJson(node));
     event.setBaseJson(baseJson);
     event.setFingerprint(buildFingerprint(eventType, node, event));
@@ -200,6 +257,10 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       timestamp = base.getTimestamp();
     }
     if (timestamp == null) {
+      return LocalDateTime.now();
+    }
+    long nowMillis = System.currentTimeMillis();
+    if (timestamp <= 0 || timestamp > nowMillis + 86_400_000L) {
       return LocalDateTime.now();
     }
     return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
@@ -355,5 +416,12 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     } catch (JsonProcessingException e) {
       throw new ServiceException("monitor.errors.jsonSerializeFailed");
     }
+  }
+
+  private String writeNullableJson(Object value) {
+    if (value == null) {
+      return null;
+    }
+    return writeJson(value);
   }
 }

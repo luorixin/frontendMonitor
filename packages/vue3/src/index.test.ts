@@ -5,7 +5,9 @@ const initMock = vi.fn()
 const captureErrorMock = vi.fn()
 
 vi.mock("frontend-monitor-core", () => ({
+  addBreadcrumb: vi.fn(),
   captureError: captureErrorMock,
+  clearContext: vi.fn(),
   flush: vi.fn(),
   getOptions: vi.fn(),
   init: initMock,
@@ -13,6 +15,10 @@ vi.mock("frontend-monitor-core", () => ({
   intersectionObserver: vi.fn(),
   intersectionUnobserve: vi.fn(),
   sendLocal: vi.fn(),
+  setContext: vi.fn(),
+  setEnvironment: vi.fn(),
+  setRelease: vi.fn(),
+  setTag: vi.fn(),
   setUser: vi.fn(),
   track: vi.fn()
 }))

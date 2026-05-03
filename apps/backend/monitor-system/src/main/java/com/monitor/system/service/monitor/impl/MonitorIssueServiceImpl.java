@@ -26,6 +26,7 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
       "IGNORED",
       "RESOLVED"
   );
+  private static final Set<String> ALLOWED_PRIORITIES = Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL");
 
   private final MonitorIssueMapper issueMapper;
   private final MonitorEventMapper eventMapper;
@@ -85,6 +86,19 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
     issueMapper.updateIssueStatus(id, normalized);
   }
 
+  @Override
+  @Transactional
+  public void updateIssueAssignment(Long id, String assignee, String priority) {
+    requireIssue(id);
+    String normalizedPriority = priority == null || priority.isBlank()
+        ? "MEDIUM"
+        : priority.trim().toUpperCase();
+    if (!ALLOWED_PRIORITIES.contains(normalizedPriority)) {
+      throw new ServiceException(400, "monitor.errors.invalidIssuePriority");
+    }
+    issueMapper.updateIssueAssignment(id, trimToNull(assignee), normalizedPriority);
+  }
+
   private void applyDefaultTimeRange(MonitorIssueQuery query) {
     if (query.getEndTime() == null) {
       query.setEndTime(LocalDateTime.now());
@@ -114,6 +128,17 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
     vo.setOccurrenceCount(issue.getOccurrenceCount());
     vo.setLatestEventId(issue.getLatestEventId());
     vo.setStatus(issue.getStatus());
+    vo.setAssignee(issue.getAssignee());
+    vo.setPriority(issue.getPriority());
+    vo.setCommentCount(issue.getCommentCount());
     return vo;
+  }
+
+  private String trimToNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 }

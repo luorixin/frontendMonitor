@@ -17,9 +17,9 @@ const DEFAULT_CAPTURE = {
 
 export const DEFAULT_OPTIONS: Omit<
   ResolvedMonitorOptions,
-  "dsn" | "appName" | "appVersion" | "userId"
-> = {
-  afterSend: undefined,
+	  "dsn" | "appName" | "appVersion" | "userId"
+	> = {
+	  afterSend: undefined,
   batchSize: 5,
   beforePushEvent: undefined,
   beforeSend: undefined,
@@ -27,13 +27,24 @@ export const DEFAULT_OPTIONS: Omit<
   debug: false,
   flushInterval: 5000,
   ignoreUrls: [],
-  localization: false,
-  localizationKey: "__frontend_monitor_local__",
-  maxQueueLength: 200,
-  sampleRate: 1,
-  scopeError: false,
-  timeout: 5000
-}
+	  localization: false,
+	  localizationKey: "__frontend_monitor_local__",
+	  maxQueueLength: 200,
+	  maxBreadcrumbs: 50,
+	  maxOfflinePayloads: 50,
+	  maxPayloadBytes: 64 * 1024,
+	  offlineQueueKey: "__frontend_monitor_offline__",
+	  offlineRetry: true,
+	  retryBaseDelay: 1000,
+	  retryMaxAttempts: 3,
+	  sampleRate: 1,
+	  scopeError: false,
+	  contexts: {},
+	  environment: undefined,
+	  release: undefined,
+	  tags: {},
+	  timeout: 5000
+	}
 
 export const SDK_VERSION = "0.1.0"
 
@@ -51,13 +62,17 @@ export function normalizeOptions(
     1,
     options.maxQueueLength ?? DEFAULT_OPTIONS.maxQueueLength
   )
-  const timeout = Math.max(
-    0,
-    options.timeout ?? DEFAULT_OPTIONS.timeout
-  )
+	  const timeout = Math.max(
+	    0,
+	    options.timeout ?? DEFAULT_OPTIONS.timeout
+	  )
+	  const maxPayloadBytes = Math.max(
+	    0,
+	    options.maxPayloadBytes ?? DEFAULT_OPTIONS.maxPayloadBytes
+	  )
 
-  return {
-    afterSend: options.afterSend ?? DEFAULT_OPTIONS.afterSend,
+	  return {
+	    afterSend: options.afterSend ?? DEFAULT_OPTIONS.afterSend,
     appName: options.appName,
     appVersion: options.appVersion,
     batchSize: Math.max(1, options.batchSize ?? DEFAULT_OPTIONS.batchSize),
@@ -72,15 +87,38 @@ export function normalizeOptions(
     ),
     ignoreUrls,
     localization: options.localization ?? DEFAULT_OPTIONS.localization,
-    localizationKey:
-      options.localizationKey ?? DEFAULT_OPTIONS.localizationKey,
-    localizationOverflow: options.localizationOverflow ?? DEFAULT_OPTIONS.localizationOverflow,
-    maxQueueLength,
-    sampleRate,
-    scopeError: options.scopeError ?? DEFAULT_OPTIONS.scopeError,
-    timeout,
-    userId: options.userId
-  }
+	    localizationKey:
+	      options.localizationKey ?? DEFAULT_OPTIONS.localizationKey,
+	    localizationOverflow: options.localizationOverflow ?? DEFAULT_OPTIONS.localizationOverflow,
+	    contexts: { ...(options.contexts ?? DEFAULT_OPTIONS.contexts) },
+	    environment: options.environment ?? DEFAULT_OPTIONS.environment,
+	    maxBreadcrumbs: Math.max(
+	      0,
+	      options.maxBreadcrumbs ?? DEFAULT_OPTIONS.maxBreadcrumbs
+	    ),
+	    maxOfflinePayloads: Math.max(
+	      0,
+	      options.maxOfflinePayloads ?? DEFAULT_OPTIONS.maxOfflinePayloads
+	    ),
+	    maxPayloadBytes,
+	    maxQueueLength,
+	    offlineQueueKey: options.offlineQueueKey ?? DEFAULT_OPTIONS.offlineQueueKey,
+	    offlineRetry: options.offlineRetry ?? DEFAULT_OPTIONS.offlineRetry,
+	    release: options.release ?? DEFAULT_OPTIONS.release,
+	    retryBaseDelay: Math.max(
+	      0,
+	      options.retryBaseDelay ?? DEFAULT_OPTIONS.retryBaseDelay
+	    ),
+	    retryMaxAttempts: Math.max(
+	      0,
+	      options.retryMaxAttempts ?? DEFAULT_OPTIONS.retryMaxAttempts
+	    ),
+	    sampleRate,
+	    scopeError: options.scopeError ?? DEFAULT_OPTIONS.scopeError,
+	    tags: { ...(options.tags ?? DEFAULT_OPTIONS.tags) },
+	    timeout,
+	    userId: options.userId
+	  }
 }
 
 function clampSampleRate(value: number): number {

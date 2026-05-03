@@ -3,6 +3,7 @@ import { DEFAULT_OPTIONS } from "./config"
 import { state, clearTimer } from "./context"
 import { runAfterSendHooks, runBeforePushEventHooks, runBeforeSendHooks } from "./hooks"
 import { persistLocalizedPayload } from "./localization"
+import { persistOfflineEvents, persistOfflinePayload } from "./offline"
 import { sendPayload } from "./transport"
 import type { MonitorEvent } from "./types"
 
@@ -25,6 +26,7 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
   }
 
   if (state.networkStatus === "offline") {
+    persistOfflineEvents([event])
     debugLog("drop event: offline")
     return
   }
@@ -104,6 +106,7 @@ async function flushQueueInternal(options?: {
   }
 
   const result = await sendPayload(state.options.dsn, processedPayload, {
+    maxPayloadBytes: state.options.maxPayloadBytes,
     preferBeacon: options?.preferBeacon,
     timeout: state.options.timeout
   })
@@ -111,6 +114,9 @@ async function flushQueueInternal(options?: {
   runAfterSendHooks(result, processedPayload)
 
   if (!result.success) {
+    if (result.reason !== "payload_too_large") {
+      persistOfflinePayload(processedPayload)
+    }
     debugLog("send failed", result)
     return
   }

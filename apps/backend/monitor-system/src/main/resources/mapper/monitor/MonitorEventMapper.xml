@@ -14,6 +14,8 @@
     <result property="occurredAt" column="occurred_at"/>
     <result property="appName" column="app_name"/>
     <result property="appVersion" column="app_version"/>
+    <result property="environment" column="environment"/>
+    <result property="release" column="release"/>
     <result property="userId" column="user_id"/>
     <result property="deviceId" column="device_id"/>
     <result property="sessionId" column="session_id"/>
@@ -28,6 +30,11 @@
     <result property="resourceType" column="resource_type"/>
     <result property="transport" column="transport"/>
     <result property="eventName" column="event_name"/>
+    <result property="tagsJson" column="tags_json"/>
+    <result property="contextsJson" column="contexts_json"/>
+    <result property="breadcrumbsJson" column="breadcrumbs_json"/>
+    <result property="traceId" column="trace_id"/>
+    <result property="spanId" column="span_id"/>
     <result property="payloadJson" column="payload_json"/>
     <result property="baseJson" column="base_json"/>
     <result property="createTime" column="create_time"/>
@@ -35,23 +42,26 @@
 
   <sql id="selectMonitorEvent">
     SELECT id, project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
-           app_name, app_version, user_id, device_id, session_id, page_id, url, title,
+           app_name, app_version, environment, release, user_id, device_id, session_id, page_id, url, title,
            request_method, request_status, duration, message, selector, resource_type,
-           transport, event_name, payload_json, base_json, create_time
+           transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
+           payload_json, base_json, create_time
     FROM monitor_event
   </sql>
 
   <insert id="insertEvent" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO monitor_event (
       project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
-      app_name, app_version, user_id, device_id, session_id, page_id, url, title,
+      app_name, app_version, environment, release, user_id, device_id, session_id, page_id, url, title,
       request_method, request_status, duration, message, selector, resource_type,
-      transport, event_name, payload_json, base_json
+      transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
+      payload_json, base_json
     ) VALUES (
       #{projectId}, #{issueId}, #{eventId}, #{issueType}, #{fingerprint}, #{eventType}, #{occurredAt},
-      #{appName}, #{appVersion}, #{userId}, #{deviceId}, #{sessionId}, #{pageId}, #{url}, #{title},
+      #{appName}, #{appVersion}, #{environment}, #{release}, #{userId}, #{deviceId}, #{sessionId}, #{pageId}, #{url}, #{title},
       #{requestMethod}, #{requestStatus}, #{duration}, #{message}, #{selector}, #{resourceType},
-      #{transport}, #{eventName}, #{payloadJson}, #{baseJson}
+      #{transport}, #{eventName}, #{tagsJson}, #{contextsJson}, #{breadcrumbsJson}, #{traceId}, #{spanId},
+      #{payloadJson}, #{baseJson}
     )
   </insert>
 
@@ -72,6 +82,12 @@
       </if>
       <if test="appVersion != null and appVersion != ''">
         AND app_version = #{appVersion}
+      </if>
+      <if test="environment != null and environment != ''">
+        AND environment = #{environment}
+      </if>
+      <if test="release != null and release != ''">
+        AND release = #{release}
       </if>
       <if test="userId != null and userId != ''">
         AND user_id = #{userId}
@@ -131,6 +147,17 @@
       AND occurred_at <![CDATA[ >= ]]> #{startTime}
       AND occurred_at <![CDATA[ <= ]]> #{endTime}
       AND event_type = 'page_view'
+  </select>
+
+  <select id="countEventsByType" resultType="long">
+    SELECT COUNT(1)
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+      <if test="eventType != null and eventType != ''">
+        AND event_type = #{eventType}
+      </if>
   </select>
 
   <select id="countDistinctSessions" resultType="long">

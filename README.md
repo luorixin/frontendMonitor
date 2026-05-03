@@ -38,14 +38,16 @@ pnpm release:local
 - 曝光能力：`intersectionObserver`、`intersectionUnobserve`、`intersectionDisconnect`
 - 基础性能采集：页面导航性能事件
 - 上报链路：内存队列、批量发送、采样、忽略上报地址、`sendBeacon`/`image`/`xhr` 三段降级、页面关闭时 `beacon` flush
+- 可靠性治理：离线/失败 payload 本地缓存、在线后自动重试、payload 大小限制
 - 本地化模式：`localization: true` 时先写入 `localStorage`，业务可手动调用 `sendLocal()`
 - 错误聚合：`scopeError: true` 时短时间重复错误会聚合到首条错误事件的 `scopeCount`
 - 发送前处理：内置脱敏 hook，会统一处理 `token`、手机号、身份证号、输入框内容
+- 诊断上下文：`release`、`environment`、`tags`、`contexts`、`breadcrumbs`
 
 当前版本不包含：
 
 - 录屏
-- 自动离线重试
+- Source Map 反混淆
 
 ## Framework Adapters
 

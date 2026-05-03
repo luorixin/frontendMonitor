@@ -1,4 +1,5 @@
 import { state } from "../context"
+import { recordBreadcrumb } from "../breadcrumb"
 import { enqueueEvent } from "../queue"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
@@ -75,6 +76,16 @@ export function initXHRCapture(): void {
         (status !== undefined && status >= 400)
 
       if (isError) {
+        recordBreadcrumb({
+          data: {
+            method: meta.method,
+            status,
+            url: meta.url
+          },
+          level: "error",
+          message: `${meta.method} ${meta.url} failed${status ? ` with ${status}` : ""}`,
+          type: "request"
+        })
         enqueueEvent(
           createRequestErrorEvent({
             duration,

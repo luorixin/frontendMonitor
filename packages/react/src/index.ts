@@ -1,5 +1,7 @@
 import {
+  addBreadcrumb,
   captureError,
+  clearContext,
   destroy,
   flush,
   getOptions,
@@ -8,6 +10,10 @@ import {
   intersectionObserver,
   intersectionUnobserve,
   sendLocal,
+  setContext,
+  setEnvironment,
+  setRelease,
+  setTag,
   setUser,
   track
 } from "frontend-monitor-core"
@@ -71,15 +77,21 @@ export class WebTracingErrorBoundary extends Component<
 
 export function useWebTracing() {
   return {
-    captureError,
-    flush,
+	    captureError,
+	    addBreadcrumb,
+	    clearContext,
+	    flush,
     getOptions,
     init,
     intersectionDisconnect,
     intersectionObserver,
     intersectionUnobserve,
-    sendLocal,
-    setUser,
+	    sendLocal,
+	    setContext,
+	    setEnvironment,
+	    setRelease,
+	    setTag,
+	    setUser,
     track
   }
 }

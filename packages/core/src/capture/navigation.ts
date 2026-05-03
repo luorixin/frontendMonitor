@@ -1,4 +1,5 @@
 import { getCurrentRoute } from "../base"
+import { recordBreadcrumb } from "../breadcrumb"
 import { addCleanup, state } from "../context"
 import { debugLog, enqueueEvent } from "../queue"
 import type { PageDwellEventPayload, PageViewEventPayload, RouteChangeEventPayload } from "../types"
@@ -100,6 +101,16 @@ function emitRouteChange(
     trigger,
     type: "route_change",
     url: window.location.href
+  })
+
+  recordBreadcrumb({
+    data: {
+      from: previousRoute,
+      to: nextRoute,
+      trigger
+    },
+    message: `Route ${previousRoute} -> ${nextRoute}`,
+    type: "navigation"
   })
 
   if (state.options?.debug) {

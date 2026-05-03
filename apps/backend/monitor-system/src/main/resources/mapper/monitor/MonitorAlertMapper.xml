@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorAlertMapper">
+
+  <resultMap id="MonitorAlertRuleResult" type="com.monitor.system.domain.monitor.MonitorAlertRule">
+    <id property="id" column="id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="name" column="name"/>
+    <result property="eventType" column="event_type"/>
+    <result property="thresholdCount" column="threshold_count"/>
+    <result property="windowMinutes" column="window_minutes"/>
+    <result property="enabled" column="enabled"/>
+    <result property="createTime" column="create_time"/>
+    <result property="updateTime" column="update_time"/>
+  </resultMap>
+
+  <resultMap id="MonitorAlertRecordResult" type="com.monitor.system.domain.monitor.MonitorAlertRecord">
+    <id property="id" column="id"/>
+    <result property="ruleId" column="rule_id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="eventType" column="event_type"/>
+    <result property="windowStart" column="window_start"/>
+    <result property="windowEnd" column="window_end"/>
+    <result property="actualCount" column="actual_count"/>
+    <result property="thresholdCount" column="threshold_count"/>
+    <result property="message" column="message"/>
+    <result property="triggeredAt" column="triggered_at"/>
+    <result property="createTime" column="create_time"/>
+  </resultMap>
+
+  <insert id="insertRule" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_alert_rule (
+      project_id, name, event_type, threshold_count, window_minutes, enabled
+    ) VALUES (
+      #{projectId}, #{name}, #{eventType}, #{thresholdCount}, #{windowMinutes}, #{enabled}
+    )
+  </insert>
+
+  <update id="updateRule">
+    UPDATE monitor_alert_rule
+    SET name = #{name},
+        event_type = #{eventType},
+        threshold_count = #{thresholdCount},
+        window_minutes = #{windowMinutes},
+        enabled = #{enabled}
+    WHERE id = #{id}
+  </update>
+
+  <update id="updateRuleEnabled">
+    UPDATE monitor_alert_rule
+    SET enabled = #{enabled}
+    WHERE id = #{id}
+  </update>
+
+  <select id="selectRuleById" resultMap="MonitorAlertRuleResult">
+    SELECT id, project_id, name, event_type, threshold_count, window_minutes,
+           enabled, create_time, update_time
+    FROM monitor_alert_rule
+    WHERE id = #{id}
+  </select>
+
+  <select id="selectRuleList" resultMap="MonitorAlertRuleResult">
+    SELECT id, project_id, name, event_type, threshold_count, window_minutes,
+           enabled, create_time, update_time
+    FROM monitor_alert_rule
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="enabled != null">
+        AND enabled = #{enabled}
+      </if>
+    </where>
+    ORDER BY id DESC
+  </select>
+
+  <select id="selectEnabledRules" resultMap="MonitorAlertRuleResult">
+    SELECT id, project_id, name, event_type, threshold_count, window_minutes,
+           enabled, create_time, update_time
+    FROM monitor_alert_rule
+    WHERE enabled = 1
+    ORDER BY id ASC
+  </select>
+
+  <insert id="insertRecord" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_alert_record (
+      rule_id, project_id, event_type, window_start, window_end,
+      actual_count, threshold_count, message, triggered_at
+    ) VALUES (
+      #{ruleId}, #{projectId}, #{eventType}, #{windowStart}, #{windowEnd},
+      #{actualCount}, #{thresholdCount}, #{message}, #{triggeredAt}
+    )
+  </insert>
+
+  <select id="selectRecordList" resultMap="MonitorAlertRecordResult">
+    SELECT id, rule_id, project_id, event_type, window_start, window_end,
+           actual_count, threshold_count, message, triggered_at, create_time
+    FROM monitor_alert_record
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="ruleId != null">
+        AND rule_id = #{ruleId}
+      </if>
+      <if test="startTime != null">
+        AND triggered_at <![CDATA[ >= ]]> #{startTime}
+      </if>
+      <if test="endTime != null">
+        AND triggered_at <![CDATA[ <= ]]> #{endTime}
+      </if>
+    </where>
+    ORDER BY triggered_at DESC, id DESC
+  </select>
+</mapper>

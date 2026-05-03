@@ -21,15 +21,21 @@ import {
 } from "./capture/navigation"
 import { clearCleanups, resetState, state } from "./context"
 import {
-  afterSend,
-  beforePushEvent,
-  beforeSend,
-  captureError,
+	  afterSend,
+	  addBreadcrumb,
+	  beforePushEvent,
+	  beforeSend,
+	  captureError,
+	  clearContext,
   flush,
   getOptions,
   seedInitHooks,
-  sendLocal,
-  setUser,
+	  sendLocal,
+	  setContext,
+	  setEnvironment,
+	  setRelease,
+	  setTag,
+	  setUser,
   track
 } from "./manual"
 import { clearQueue } from "./queue"
@@ -37,8 +43,9 @@ import { uuid } from "./utils"
 import type { MonitorOptions } from "./types"
 
 export type {
-  AfterSendHandler,
-  BasePayload,
+	  AfterSendHandler,
+	  BasePayload,
+	  Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
   CaptureOptions,
@@ -107,16 +114,22 @@ export function destroy(): void {
 }
 
 export {
-  afterSend,
-  beforePushEvent,
-  beforeSend,
-  captureError,
+	  afterSend,
+	  addBreadcrumb,
+	  beforePushEvent,
+	  beforeSend,
+	  captureError,
+	  clearContext,
   flush,
   getOptions,
   intersectionDisconnect,
   intersectionObserver,
   intersectionUnobserve,
-  sendLocal,
-  setUser,
+	  sendLocal,
+	  setContext,
+	  setEnvironment,
+	  setRelease,
+	  setTag,
+	  setUser,
   track
 }

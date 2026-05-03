@@ -112,6 +112,9 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - 原始事件同步落库
 - 按指纹更新 `monitor_issue`
 - 同步更新小时 / 天聚合表
+- 校验项目 `allowedOrigins`
+- 限制单批事件数、payload 大小和图片打点数据长度
+- 按项目做分钟级采集限流
 - 图片打点接口始终返回 `1x1 gif`
 
 ### 2. 管理后台接口
@@ -148,6 +151,17 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `GET /api/v1/monitor/issues/{id}/events`
 - `GET /api/v1/monitor/issues/{id}/trend`
 - `POST /api/v1/monitor/issues/{id}/status`
+- `POST /api/v1/monitor/issues/{id}/assignment`
+
+告警：
+
+- `GET /api/v1/monitor/alerts/rules`
+- `GET /api/v1/monitor/alerts/rules/{id}`
+- `POST /api/v1/monitor/alerts/rules`
+- `PUT /api/v1/monitor/alerts/rules/{id}`
+- `POST /api/v1/monitor/alerts/rules/{id}/status`
+- `POST /api/v1/monitor/alerts/rules/{id}/test`
+- `GET /api/v1/monitor/alerts/records`
 
 ## 数据模型
 
@@ -163,12 +177,15 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `monitor_issue`
 - `monitor_event_agg_hour`
 - `monitor_event_agg_day`
+- `monitor_alert_rule`
+- `monitor_alert_record`
 
 其中：
 
 - `monitor_event` 保存原始事件明细和原始 JSON
 - `monitor_issue` 按指纹聚合同类问题
 - 小时 / 天聚合表用于 dashboard 趋势统计
+- 告警规则和触发记录用于基础运营闭环
 
 初始化种子数据位于：
 
@@ -209,6 +226,12 @@ JWT_SECRET=monitor-backend-secret-key-min-32-bytes!
 JWT_ISSUER=monitor-backend
 JWT_ACCESS_TTL=30
 JWT_REFRESH_TTL=720
+MONITOR_COLLECT_MAX_EVENTS=100
+MONITOR_COLLECT_MAX_PAYLOAD_BYTES=262144
+MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES=4096
+MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE=6000
+MONITOR_RETENTION_EVENT_DAYS=30
+MONITOR_RETENTION_AGGREGATE_DAYS=180
 
 SPRING_SQL_INIT_MODE=never
 ```
@@ -298,10 +321,10 @@ mvn -f apps/backend/pom.xml test
 
 ## 已知边界
 
-这版后端聚焦“监控数据采集和查询闭环”，当前不包含：
+这版后端聚焦“监控数据采集、查询、Issue 和基础告警闭环”，当前不包含：
 
 - 录屏文件存储与回放
-- 告警通知
+- 告警外部通知
 - RBAC 精细权限
 - MQ 异步链路
 - ES / OpenSearch 检索

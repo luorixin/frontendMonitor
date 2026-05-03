@@ -69,7 +69,6 @@ pnpm test
 - Owner: `luorixin`
 - Repository: `frontendMonitor`
 - Workflow: `release.yml`
-- Branch: `master`
 
 ### 4.1 后台逐项填写说明
 
@@ -124,7 +123,6 @@ npm 官方建议在 trusted publisher 验证通过后，进入每个包的：
 - `.changeset/config.json`
 - `.github/workflows/ci.yml`
 - `.github/workflows/release.yml`
-- npm trusted publisher 配置
 
 ## 5. 首次发布前检查
 
@@ -228,7 +226,6 @@ pnpm release:local
    - owner: `luorixin`
    - repository: `frontendMonitor`
    - workflow filename: `release.yml`
-   - branch: `master`
 3. workflow 是否运行在 GitHub-hosted runner
 4. `.github/workflows/release.yml` 是否包含：
    - `permissions.id-token: write`
@@ -248,6 +245,63 @@ pnpm release:local
 3. 到 npm 后台给这 4 个包逐个配 trusted publisher
 4. 检查 GitHub 仓库 secrets 里不要残留旧的 `NPM_TOKEN`
 5. 再让 `release.yml` 跑一次
+
+### `E404 Not Found - PUT https://registry.npmjs.org/frontend-monitor-nuxt3`
+
+如果报错像这样：
+
+```text
+npm error code E404
+npm error 404 Not Found - PUT https://registry.npmjs.org/frontend-monitor-nuxt3 - Not found
+npm error 404 'frontend-monitor-nuxt3@0.2.0' is not in this registry
+```
+
+先区分两种情况：
+
+#### 情况 1：这个包从未发布过
+
+这种情况下要先确认：
+
+1. 包名本身在 npm 上没有被占用
+2. 当前账号具备首次发布该无 scope 包名的权限
+3. trusted publishing 已经为这个包配置完成
+
+#### 情况 2：这个包已经存在，但新版本 publish 返回 `E404`
+
+这是更容易误判的一种情况。  
+当包已经存在时，这个 `E404` 往往不是“registry 里没有这个包”，而是 npm 没把当前这次发布识别成这个包的合法发布者。
+
+最常见原因：
+
+1. `frontend-monitor-nuxt3` 这个包没有单独配置 trusted publisher
+   注意：4 个包必须逐个配置，不能只配其中 3 个。
+2. `frontend-monitor-nuxt3` 的 trusted publisher 配置和其他包不一致
+   例如 repo 名、workflow filename 填错。
+3. 之前是手动/token 发布的，但这个包当前没有把 GitHub Actions OIDC principal 正确绑定进去
+4. workflow 实际跑的不是你在 npm 后台登记的那个 workflow 文件
+
+排查建议：
+
+1. 先打开 `frontend-monitor-nuxt3` 的 npm 包页面
+2. 进入 `Settings -> Trusted publishing`
+3. 确认它单独存在一条 GitHub Actions 记录
+4. 字段应为：
+   - `Organization or user`: `luorixin`
+   - `Repository`: `frontendMonitor`
+   - `Workflow filename`: `release.yml`
+   - `Environment name`: 留空
+5. 检查另外 3 个包页面，确认 `nuxt3` 不是唯一漏配或配错的那个
+6. 确认 GitHub Actions 触发的确实是 `.github/workflows/release.yml`
+
+如果这 4 个包里只有 `frontend-monitor-nuxt3` 失败，而其他几个已经能正常发版，几乎可以直接判断为：
+
+- `frontend-monitor-nuxt3` 的 npm 包级 trusted publisher 配置没有命中
+
+而不是：
+
+- 包名不存在
+- 版本号 `0.2.0` 有问题
+- Changesets 版本策略有问题
 
 ### release PR 已创建，但没有真正发布
 

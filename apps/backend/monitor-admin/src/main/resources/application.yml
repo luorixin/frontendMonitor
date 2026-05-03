@@ -56,3 +56,14 @@ app:
     issuer: ${JWT_ISSUER:monitor-backend}
     access-token-ttl: ${JWT_ACCESS_TTL:30}
     refresh-token-ttl: ${JWT_REFRESH_TTL:720}
+  monitor:
+    collect:
+      max-events-per-request: ${MONITOR_COLLECT_MAX_EVENTS:100}
+      max-payload-bytes: ${MONITOR_COLLECT_MAX_PAYLOAD_BYTES:262144}
+      max-image-data-bytes: ${MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES:4096}
+      rate-limit-per-minute: ${MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE:6000}
+    alert:
+      evaluate-cron: ${MONITOR_ALERT_EVALUATE_CRON:0 */1 * * * ?}
+    retention:
+      event-days: ${MONITOR_RETENTION_EVENT_DAYS:30}
+      aggregate-days: ${MONITOR_RETENTION_AGGREGATE_DAYS:180}

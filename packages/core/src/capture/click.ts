@@ -1,4 +1,5 @@
 import { state, addCleanup } from "../context"
+import { recordBreadcrumb } from "../breadcrumb"
 import { enqueueEvent, debugLog } from "../queue"
 import type { ClickEventPayload } from "../types"
 import {
@@ -25,6 +26,15 @@ export function initClickCapture(): void {
     state.lastClickAt = currentTime
 
     const clickEvent = createClickEvent(target, tagName, currentTime)
+    recordBreadcrumb({
+      data: {
+        selector: clickEvent.selector,
+        textPreview: clickEvent.textPreview
+      },
+      message: `Click ${clickEvent.selector}`,
+      timestamp: currentTime,
+      type: "click"
+    })
     enqueueEvent(clickEvent)
 
     if (state.options?.debug) {

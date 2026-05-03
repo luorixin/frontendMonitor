@@ -34,4 +34,10 @@ public interface MonitorIssueMapper {
   );
 
   int updateIssueStatus(@Param("id") Long id, @Param("status") String status);
+
+  int updateIssueAssignment(
+      @Param("id") Long id,
+      @Param("assignee") String assignee,
+      @Param("priority") String priority
+  );
 }
