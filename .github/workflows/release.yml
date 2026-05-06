@@ -60,15 +60,31 @@ jobs:
       - name: Publish preflight diagnostics
         if: steps.changesets.outputs.hasChangesets == 'false'
         run: |
+          echo "github.repository: ${{ github.repository }}"
+          echo "github.workflow: ${{ github.workflow }}"
+          echo "github.workflow_ref: ${{ github.workflow_ref }}"
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.sha: ${{ github.sha }}"
+          echo "github.event_name: ${{ github.event_name }}"
+          echo "runner.os: ${{ runner.os }}"
+          echo "runner.environment: ${{ runner.environment }}"
           echo "ACTIONS_ID_TOKEN_REQUEST_URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
           echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
           echo "NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
           echo "NPM_TOKEN set: ${NPM_TOKEN:+yes}"
           npm config get registry
+          npm --version
+          node --version
+          npm config list
+          npm ping
           npm view frontend-monitor-core version
           npm view frontend-monitor-vue3 version
           npm view frontend-monitor-react version
           npm view frontend-monitor-nuxt3 version
+          npm view frontend-monitor-core repository --json
+          npm view frontend-monitor-vue3 repository --json
+          npm view frontend-monitor-react repository --json
+          npm view frontend-monitor-nuxt3 repository --json
         env:
           NODE_AUTH_TOKEN: ""
           NPM_TOKEN: ""
