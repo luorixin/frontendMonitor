@@ -327,6 +327,15 @@ npm error 404 'frontend-monitor-nuxt3@0.2.0' is not in this registry
 如果 OIDC 变量缺失，说明 trusted publishing 根本没有可用身份。
 如果 token 变量存在，说明 job 可能被传统 token 认证污染。
 
+如果你已经在 workflow 的 publish step 里显式把 `NODE_AUTH_TOKEN` / `NPM_TOKEN` 置空，但诊断输出仍显示它们存在，说明污染来自更上层的 GitHub 配置：
+
+- repository secrets
+- environment secrets
+- organization secrets
+- reusable workflow 或调用方传入的 env / secrets
+
+这种情况下应该删除对应 token，而不是继续修改 npm 包页面里的 trusted publisher 或 publishing access。
+
 ### release PR 已创建，但没有真正发布
 
 这是正常现象。Changesets action 分两阶段：

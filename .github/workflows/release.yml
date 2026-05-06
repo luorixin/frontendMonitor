@@ -69,9 +69,14 @@ jobs:
           npm view frontend-monitor-vue3 version
           npm view frontend-monitor-react version
           npm view frontend-monitor-nuxt3 version
+        env:
+          NODE_AUTH_TOKEN: ""
+          NPM_TOKEN: ""
 
       - name: Publish packages
         if: steps.changesets.outputs.hasChangesets == 'false'
         run: pnpm publish-packages:local
         env:
+          NODE_AUTH_TOKEN: ""
+          NPM_TOKEN: ""
           NPM_CONFIG_PROVENANCE: true
