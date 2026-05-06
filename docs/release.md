@@ -66,6 +66,13 @@ pnpm test
 - trusted publishing 依赖 OIDC，只支持 GitHub-hosted runners，不支持 self-hosted runners。
 - npm 官方文档要求 npm CLI `11.5.1+` 和 Node `22.14.0+`。
 
+注意这里是两个版本门槛都要满足：
+
+- 只升级 Node，不升级 npm，不够
+- `actions/setup-node` 拉下来的 Node 版本不一定自带满足要求的 npm 版本
+
+因此当前 workflow 会在 `setup-node` 后显式执行一次 npm 升级，确保 trusted publishing 运行在 npm `11.5.1+` 上。
+
 参考：
 
 - npm Trusted Publishers: https://docs.npmjs.com/trusted-publishers/
