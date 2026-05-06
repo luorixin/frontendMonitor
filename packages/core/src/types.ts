@@ -39,6 +39,16 @@ export type CaptureOptions = {
   exposure?: boolean
 }
 
+export type SessionReplayOptions = {
+  enabled?: boolean
+  endpoint?: string
+  flushInterval?: number
+  maxEvents?: number
+  maxPayloadBytes?: number
+  sampleRate?: number
+  maskAllInputs?: boolean
+}
+
 export type MonitorOptions = {
   dsn: string
   appName: string
@@ -66,6 +76,7 @@ export type MonitorOptions = {
   release?: string
   tags?: Record<string, string>
   contexts?: Record<string, unknown>
+  sessionReplay?: boolean | SessionReplayOptions
   scopeError?: boolean
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
@@ -99,6 +110,9 @@ export type ResolvedMonitorOptions = {
   release?: string
   tags: Record<string, string>
   contexts: Record<string, unknown>
+  sessionReplay: Required<SessionReplayOptions> & {
+    enabled: boolean
+  }
   scopeError: boolean
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
@@ -125,12 +139,14 @@ export type BasePayload = {
   tags?: Record<string, string>
   contexts?: Record<string, unknown>
   breadcrumbs?: Breadcrumb[]
+  replayId?: string
   traceId?: string
   spanId?: string
   timestamp: number
 }
 
 export type BaseEvent = {
+  replayId?: string
   timestamp: number
   url: string
 }
@@ -279,6 +295,26 @@ export type MonitorEvent =
 export type MonitorPayload = {
   base: BasePayload
   events: MonitorEvent[]
+}
+
+export type ReplayChunkPayload = {
+  appName: string
+  appVersion?: string
+  deviceId: string
+  userId?: string
+  sessionId: string
+  pageId: string
+  url: string
+  title: string
+  userAgent: string
+  sdkVersion: string
+  environment?: string
+  release?: string
+  replayId: string
+  sequence: number
+  startedAt: number
+  endedAt: number
+  events: unknown[]
 }
 
 export type TransportResult = {

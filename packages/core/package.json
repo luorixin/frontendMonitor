@@ -39,5 +39,8 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "rrweb": "^2.0.0-alpha.18"
   }
 }

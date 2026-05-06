@@ -28,6 +28,7 @@
     <mybatis-spring-boot.version>3.0.4</mybatis-spring-boot.version>
     <pagehelper.version>2.1.1</pagehelper.version>
     <lombok.version>1.18.38</lombok.version>
+    <closure.compiler.version>v20240317</closure.compiler.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
@@ -95,6 +96,12 @@
         <groupId>com.github.pagehelper</groupId>
         <artifactId>pagehelper-spring-boot-starter</artifactId>
         <version>${pagehelper.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.javascript</groupId>
+        <artifactId>closure-compiler</artifactId>
+        <version>${closure.compiler.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

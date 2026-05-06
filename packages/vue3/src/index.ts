@@ -3,6 +3,8 @@ import {
   captureError,
   clearContext,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   init,
   intersectionDisconnect,
@@ -14,6 +16,7 @@ import {
   setRelease,
   setTag,
   setUser,
+  stopReplay,
   track
 } from "frontend-monitor-core"
 import type { MonitorOptions } from "frontend-monitor-core"
@@ -31,6 +34,8 @@ type WebTracingApi = {
   addBreadcrumb: typeof addBreadcrumb
   clearContext: typeof clearContext
   flush: typeof flush
+  flushSessionReplay: typeof flushSessionReplay
+  getReplayId: typeof getReplayId
   getOptions: typeof getOptions
   init: typeof init
   intersectionDisconnect: typeof intersectionDisconnect
@@ -42,6 +47,7 @@ type WebTracingApi = {
   setRelease: typeof setRelease
   setTag: typeof setTag
   setUser: typeof setUser
+  stopReplay: typeof stopReplay
   track: typeof track
 }
 
@@ -50,6 +56,8 @@ const tracingApi: WebTracingApi = {
   addBreadcrumb,
   clearContext,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   init,
   intersectionDisconnect,
@@ -61,6 +69,7 @@ const tracingApi: WebTracingApi = {
   setRelease,
   setTag,
   setUser,
+  stopReplay,
   track
 }
 

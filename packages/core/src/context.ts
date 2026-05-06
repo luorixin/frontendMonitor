@@ -5,6 +5,7 @@ import type {
   BeforeSendHandler,
   MonitorEvent,
   NetworkStatus,
+  ReplayChunkPayload,
   ResolvedMonitorOptions
 } from "./types"
 
@@ -42,6 +43,14 @@ export type MonitorState = {
   pageId: string
   pageStartTime: number
   queue: MonitorEvent[]
+  replayFlushPromise: Promise<void> | null
+  replayFlushTimer: ReturnType<typeof setTimeout> | null
+  replayId: string | null
+  replayQueue: unknown[]
+  replaySequence: number
+  replayStartedAt: number
+  replayStop: (() => void) | null
+  replayTransportQueue: ReplayChunkPayload[]
   retryTimer: ReturnType<typeof setTimeout> | null
   sessionId: string
   tags: Record<string, string>
@@ -72,6 +81,14 @@ export const state: MonitorState = {
   pageId: "",
   pageStartTime: 0,
   queue: [],
+  replayFlushPromise: null,
+  replayFlushTimer: null,
+  replayId: null,
+  replayQueue: [],
+  replaySequence: 0,
+  replayStartedAt: 0,
+  replayStop: null,
+  replayTransportQueue: [],
   retryTimer: null,
   sessionId: "",
   tags: {}
@@ -115,6 +132,14 @@ export function resetState(): void {
   state.pageId = ""
   state.pageStartTime = 0
   state.queue = []
+  state.replayFlushPromise = null
+  state.replayFlushTimer = clearTimer(state.replayFlushTimer)
+  state.replayId = null
+  state.replayQueue = []
+  state.replaySequence = 0
+  state.replayStartedAt = 0
+  state.replayStop = null
+  state.replayTransportQueue = []
   state.retryTimer = clearTimer(state.retryTimer)
   state.sessionId = ""
   state.tags = {}

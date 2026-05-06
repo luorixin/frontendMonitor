@@ -4,6 +4,8 @@ import {
   clearContext,
   destroy,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   init,
   intersectionDisconnect,
@@ -15,6 +17,7 @@ import {
   setRelease,
   setTag,
   setUser,
+  stopReplay,
   track
 } from "frontend-monitor-core"
 import type { MonitorOptions } from "frontend-monitor-core"
@@ -81,6 +84,8 @@ export function useWebTracing() {
 	    addBreadcrumb,
 	    clearContext,
 	    flush,
+    flushSessionReplay,
+    getReplayId,
     getOptions,
     init,
     intersectionDisconnect,
@@ -92,6 +97,7 @@ export function useWebTracing() {
 	    setRelease,
 	    setTag,
 	    setUser,
+    stopReplay,
     track
   }
 }

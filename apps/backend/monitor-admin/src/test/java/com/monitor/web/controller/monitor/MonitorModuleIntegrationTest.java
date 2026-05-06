@@ -3,6 +3,7 @@ package com.monitor.web.controller.monitor;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -24,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 
@@ -124,8 +126,168 @@ class MonitorModuleIntegrationTest {
     );
 
     org.junit.jupiter.api.Assertions.assertNotNull(appliedMigrations);
-    org.junit.jupiter.api.Assertions.assertTrue(appliedMigrations >= 2);
+    org.junit.jupiter.api.Assertions.assertTrue(appliedMigrations >= 4);
     org.junit.jupiter.api.Assertions.assertEquals(1, seededProjects);
+  }
+
+  @Test
+  void shouldCollectReplayChunksAndLinkReplayToEvents() throws Exception {
+    String replayId = "replay-001";
+    Map<String, Object> replayPayload = new LinkedHashMap<>();
+    replayPayload.put("appName", "frontend-monitor-demo");
+    replayPayload.put("appVersion", "0.1.0");
+    replayPayload.put("deviceId", "device-r1");
+    replayPayload.put("sessionId", "session-r1");
+    replayPayload.put("pageId", "page-r1");
+    replayPayload.put("replayId", replayId);
+    replayPayload.put("url", "http://localhost:4173/replay");
+    replayPayload.put("title", "Replay");
+    replayPayload.put("sdkVersion", "0.2.0");
+    replayPayload.put("release", "1.2.3");
+    replayPayload.put("environment", "production");
+    replayPayload.put("sequence", 0);
+    replayPayload.put("startedAt", System.currentTimeMillis() - 1000);
+    replayPayload.put("endedAt", System.currentTimeMillis());
+    replayPayload.put(
+        "events",
+        List.of(Map.of("type", 4, "timestamp", System.currentTimeMillis(), "data", Map.of("href", "http://localhost:4173/replay")))
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/replays/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(replayPayload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.received").value(1));
+
+    Map<String, Object> base = basePayload(
+        "http://localhost:4173/replay",
+        "Replay",
+        "device-r1",
+        "session-r1",
+        "page-r1"
+    );
+    base.put("release", "1.2.3");
+    base.put("environment", "production");
+    base.put("replayId", replayId);
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(Map.of(
+                "base", base,
+                "events", List.of(
+                    Map.of(
+                        "type", "js_error",
+                        "message", "replay linked error",
+                        "stack", "Error: replay linked error\n    at app.js:1:1",
+                        "timestamp", System.currentTimeMillis(),
+                        "url", "http://localhost:4173/replay"
+                    )
+                )
+            ))))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/v1/monitor/replays")
+            .param("projectId", "1")
+            .param("sessionId", "session-r1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.rows[0].replayId").value(replayId))
+        .andExpect(jsonPath("$.rows[0].chunkCount").value(1));
+
+    mockMvc.perform(get("/api/v1/monitor/replays/" + replayId)
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.replayId").value(replayId))
+        .andExpect(jsonPath("$.data.chunks[0].sequenceNo").value(0))
+        .andExpect(jsonPath("$.data.chunks[0].payloadJson").exists());
+
+    mockMvc.perform(get("/api/v1/monitor/events")
+            .param("projectId", "1")
+            .param("sessionId", "session-r1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.rows[0].replayId").value(replayId));
+  }
+
+  @Test
+  void shouldUploadSourceMapAndResolveEventStack() throws Exception {
+    Map<String, Object> base = basePayload(
+        "http://localhost:4173/source-map",
+        "Source Map",
+        "device-sm",
+        "session-sm",
+        "page-sm"
+    );
+    base.put("release", "1.2.3");
+
+    Map<String, Object> payload = Map.of(
+        "base", base,
+        "events", List.of(
+            Map.of(
+                "type", "js_error",
+                "message", "minified boom",
+                "stack", "Error: minified boom\n    at boom (http://localhost:4173/assets/app.min.js:1:1)",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/source-map"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk());
+
+    MockMultipartFile sourceMap = new MockMultipartFile(
+        "file",
+        "app.min.js.map",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+        {
+          "version": 3,
+          "file": "app.min.js",
+          "sources": ["src/app.ts"],
+          "sourcesContent": ["throw new Error('boom')"],
+          "names": ["boom"],
+          "mappings": "AAAAA"
+        }
+        """.getBytes()
+    );
+
+    mockMvc.perform(multipart("/api/v1/monitor/source-maps")
+            .file(sourceMap)
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .param("artifact", "/assets/app.min.js")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.projectId").value(1))
+        .andExpect(jsonPath("$.data.release").value("1.2.3"))
+        .andExpect(jsonPath("$.data.artifact").value("/assets/app.min.js"));
+
+    String eventList = mockMvc.perform(get("/api/v1/monitor/events")
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+
+    Long eventId = objectMapper.readTree(eventList).get("rows").get(0).get("id").asLong();
+
+    mockMvc.perform(get("/api/v1/monitor/events/" + eventId + "/resolved")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.applied").value(true))
+        .andExpect(jsonPath("$.data.release").value("1.2.3"))
+        .andExpect(jsonPath("$.data.frames[0].resolved").value(true))
+        .andExpect(jsonPath("$.data.frames[0].artifact").value("/assets/app.min.js"))
+        .andExpect(jsonPath("$.data.frames[0].originalSource").value("src/app.ts"))
+        .andExpect(jsonPath("$.data.resolvedStack").value(org.hamcrest.Matchers.containsString("src/app.ts:1:1")));
   }
 
   @Test

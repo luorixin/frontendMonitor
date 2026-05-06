@@ -142,6 +142,7 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `GET /api/v1/monitor/events`
 - `GET /api/v1/monitor/events/{id}`
 - `GET /api/v1/monitor/events/{id}/raw`
+- `GET /api/v1/monitor/events/{id}/resolved`
 
 问题聚合：
 
@@ -162,12 +163,25 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `POST /api/v1/monitor/alerts/rules/{id}/test`
 - `GET /api/v1/monitor/alerts/records`
 
+Source Map：
+
+- `GET /api/v1/monitor/source-maps`
+- `POST /api/v1/monitor/source-maps`
+
+Session Replay：
+
+- `POST /api/v1/monitor/replays/{projectKey}`
+- `GET /api/v1/monitor/replays`
+- `GET /api/v1/monitor/replays/{replayId}`
+
 ## 数据模型
 
 数据库迁移脚本位于：
 
 - [monitor-admin/src/main/resources/db/migration/V1__init_schema.sql](./monitor-admin/src/main/resources/db/migration/V1__init_schema.sql)
 - [monitor-admin/src/main/resources/db/migration/V2__seed_demo_data.sql](./monitor-admin/src/main/resources/db/migration/V2__seed_demo_data.sql)
+- [monitor-admin/src/main/resources/db/migration/V3__add_source_map_artifacts.sql](./monitor-admin/src/main/resources/db/migration/V3__add_source_map_artifacts.sql)
+- [monitor-admin/src/main/resources/db/migration/V4__add_session_replay.sql](./monitor-admin/src/main/resources/db/migration/V4__add_session_replay.sql)
 
 当前包括：
 
@@ -179,6 +193,9 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `monitor_event_agg_day`
 - `monitor_alert_rule`
 - `monitor_alert_record`
+- `monitor_source_map_artifact`
+- `monitor_replay_session`
+- `monitor_replay_chunk`
 
 其中：
 
@@ -186,6 +203,8 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `monitor_issue` 按指纹聚合同类问题
 - 小时 / 天聚合表用于 dashboard 趋势统计
 - 告警规则和触发记录用于基础运营闭环
+- `monitor_source_map_artifact` 按 `project + release + artifact` 保存 Source Map 文件
+- `monitor_replay_session` 和 `monitor_replay_chunk` 保存回放元数据与分片内容
 
 当前默认会插入一个示例项目：
 
@@ -226,11 +245,25 @@ MONITOR_COLLECT_MAX_EVENTS=100
 MONITOR_COLLECT_MAX_PAYLOAD_BYTES=262144
 MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES=4096
 MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE=6000
+MONITOR_SOURCE_MAP_MAX_FILE_BYTES=2097152
+MONITOR_REPLAY_MAX_PAYLOAD_BYTES=262144
 MONITOR_RETENTION_EVENT_DAYS=30
 MONITOR_RETENTION_AGGREGATE_DAYS=180
 ```
 
 默认情况下，应用启动会自动执行 Flyway 迁移。新库会按版本顺序执行 `V1`、`V2`，已有旧库会在首次启动时写入 baseline 版本记录，然后继续执行后续迁移。
+
+当前 Source Map 闭环：
+
+- 按 `projectId + release + artifact` 上传 `.map`
+- 通过 `GET /api/v1/monitor/events/{id}/resolved` 尝试把压缩栈还原为源码栈
+- 返回 `resolvedStack` 和逐帧 `frames`，便于后续前端管理台直接展示
+
+当前 Session Replay 闭环：
+
+- SDK 或前端可以按 `projectKey` 匿名上报 replay chunk
+- 后端按 `replayId` 聚合为单个 replay session，并保留 chunk 顺序
+- 错误事件可写入 `replayId`，便于从 event 明细跳转回放
 
 如果你需要调整兼容旧库的基线行为，可以覆盖：
 

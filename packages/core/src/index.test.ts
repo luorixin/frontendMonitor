@@ -6,6 +6,8 @@ import {
   clearContext,
   destroy,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   init,
   intersectionObserver,
@@ -18,6 +20,13 @@ import {
   setUser,
   track
 } from "./index"
+const { rrwebRecordMock } = vi.hoisted(() => ({
+  rrwebRecordMock: vi.fn()
+}))
+
+vi.mock("rrweb", () => ({
+  record: rrwebRecordMock
+}))
 
 type SentPayload = {
   base: Record<string, unknown>
@@ -26,7 +35,9 @@ type SentPayload = {
 
 let activeSentPayloads: SentPayload[] = []
 const imageRequests: string[] = []
+const replayBodies: Array<Record<string, unknown>> = []
 const xhrPayloadBodies: string[] = []
+let rrwebEmit: ((event: unknown) => void) | null = null
 
 class FakeXMLHttpRequest extends EventTarget {
   method = "GET"
@@ -53,6 +64,16 @@ class FakeXMLHttpRequest extends EventTarget {
       if (typeof body === "string") {
         activeSentPayloads.push(JSON.parse(body))
         xhrPayloadBodies.push(body)
+      }
+
+      this.status = 200
+      this.emitTerminalEvent("loadend")
+      return
+    }
+
+    if (this.url === "http://localhost:4318/replays") {
+      if (typeof body === "string") {
+        replayBodies.push(JSON.parse(body))
       }
 
       this.status = 200
@@ -163,6 +184,7 @@ describe("frontend-monitor-core", () => {
     activeSentPayloads = sentPayloads
     imageRequests.splice(0, imageRequests.length)
     xhrPayloadBodies.splice(0, xhrPayloadBodies.length)
+    replayBodies.splice(0, replayBodies.length)
     window.localStorage.clear()
     sendBeaconSpy = vi.fn(() => false)
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -171,6 +193,14 @@ describe("frontend-monitor-core", () => {
       if (url === "http://localhost:4318/collect") {
         if (init?.body && typeof init.body === "string") {
           sentPayloads.push(JSON.parse(init.body))
+        }
+
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+
+      if (url === "http://localhost:4318/replays") {
+        if (init?.body && typeof init.body === "string") {
+          replayBodies.push(JSON.parse(init.body))
         }
 
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -209,6 +239,14 @@ describe("frontend-monitor-core", () => {
       FakeIntersectionObserver as unknown as typeof IntersectionObserver
     window.Image = FakeImage as unknown as typeof Image
     intersectionObservers.splice(0, intersectionObservers.length)
+    rrwebEmit = null
+    rrwebRecordMock.mockReset()
+    rrwebRecordMock.mockImplementation(
+      ({ emit }: { emit: (event: unknown) => void }) => {
+        rrwebEmit = emit
+        return vi.fn()
+      }
+    )
     document.body.innerHTML = `<button id="target">Hello monitor</button>`
     window.history.replaceState({}, "", "/")
   })
@@ -230,6 +268,54 @@ describe("frontend-monitor-core", () => {
     expect(sentPayloads).toHaveLength(1)
     expect(sentPayloads[0]?.events[0]?.type).toBe("page_view")
     expect(getOptions()?.appName).toBe("demo")
+  })
+
+  it("captures session replay chunks and exposes replay id", async () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        flushInterval: 100,
+        maxEvents: 2,
+        sampleRate: 1
+      }
+    })
+
+    expect(getReplayId()).toBeTruthy()
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/a" } })
+    rrwebEmit?.({ type: 3, timestamp: 1200, data: { source: 1 } })
+
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+    expect(replayBodies[0]?.replayId).toBe(getReplayId())
+    expect(replayBodies[0]?.sessionId).toBeTruthy()
+    expect(replayBodies[0]?.events).toHaveLength(2)
+  })
+
+  it("adds replay id to error payload base when session replay is enabled", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        pageView: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        sampleRate: 1
+      }
+    })
+
+    captureError(new Error("with replay"))
+    await flush()
+
+    expect(sentPayloads).toHaveLength(1)
+    expect(sentPayloads[0]?.base.replayId).toBe(getReplayId())
   })
 
   it("destroy restores fetch/history and clears queue", () => {

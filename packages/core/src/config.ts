@@ -1,4 +1,8 @@
-import type { MonitorOptions, ResolvedMonitorOptions } from "./types"
+import type {
+  MonitorOptions,
+  ResolvedMonitorOptions,
+  SessionReplayOptions
+} from "./types"
 
 const DEFAULT_CAPTURE = {
   click: true,
@@ -14,6 +18,16 @@ const DEFAULT_CAPTURE = {
   routeChange: true,
   xhrError: true
 } as const satisfies Record<keyof Required<import("./types").CaptureOptions>, boolean>
+
+const DEFAULT_SESSION_REPLAY = {
+  enabled: false,
+  endpoint: "",
+  flushInterval: 5000,
+  maskAllInputs: true,
+  maxEvents: 20,
+  maxPayloadBytes: 128 * 1024,
+  sampleRate: 0
+} as const satisfies Required<SessionReplayOptions>
 
 export const DEFAULT_OPTIONS: Omit<
   ResolvedMonitorOptions,
@@ -42,6 +56,7 @@ export const DEFAULT_OPTIONS: Omit<
 	  contexts: {},
 	  environment: undefined,
 	  release: undefined,
+	  sessionReplay: { ...DEFAULT_SESSION_REPLAY },
 	  tags: {},
 	  timeout: 5000
 	}
@@ -70,6 +85,7 @@ export function normalizeOptions(
 	    0,
 	    options.maxPayloadBytes ?? DEFAULT_OPTIONS.maxPayloadBytes
 	  )
+  const sessionReplay = normalizeSessionReplayOptions(options)
 
 	  return {
 	    afterSend: options.afterSend ?? DEFAULT_OPTIONS.afterSend,
@@ -114,11 +130,43 @@ export function normalizeOptions(
 	      options.retryMaxAttempts ?? DEFAULT_OPTIONS.retryMaxAttempts
 	    ),
 	    sampleRate,
+	    sessionReplay,
 	    scopeError: options.scopeError ?? DEFAULT_OPTIONS.scopeError,
 	    tags: { ...(options.tags ?? DEFAULT_OPTIONS.tags) },
 	    timeout,
 	    userId: options.userId
 	  }
+}
+
+function normalizeSessionReplayOptions(
+  options: MonitorOptions
+): ResolvedMonitorOptions["sessionReplay"] {
+  const raw =
+    typeof options.sessionReplay === "boolean"
+      ? { enabled: options.sessionReplay }
+      : (options.sessionReplay ?? {})
+
+  return {
+    enabled: raw.enabled ?? false,
+    endpoint: raw.endpoint ?? deriveReplayEndpoint(options.dsn),
+    flushInterval: Math.max(
+      0,
+      raw.flushInterval ?? DEFAULT_SESSION_REPLAY.flushInterval
+    ),
+    maskAllInputs: raw.maskAllInputs ?? DEFAULT_SESSION_REPLAY.maskAllInputs,
+    maxEvents: Math.max(1, raw.maxEvents ?? DEFAULT_SESSION_REPLAY.maxEvents),
+    maxPayloadBytes: Math.max(
+      1024,
+      raw.maxPayloadBytes ?? DEFAULT_SESSION_REPLAY.maxPayloadBytes
+    ),
+    sampleRate: clampSampleRate(
+      raw.sampleRate ?? DEFAULT_SESSION_REPLAY.sampleRate
+    )
+  }
+}
+
+function deriveReplayEndpoint(dsn: string): string {
+  return dsn.replace("/collect/", "/replays/")
 }
 
 function clampSampleRate(value: number): number {

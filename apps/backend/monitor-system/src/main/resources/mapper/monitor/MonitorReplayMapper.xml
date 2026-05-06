@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorReplayMapper">
+
+  <resultMap id="MonitorReplaySessionResult" type="com.monitor.system.domain.monitor.MonitorReplaySession">
+    <id property="id" column="id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="replayId" column="replay_id"/>
+    <result property="sessionId" column="session_id"/>
+    <result property="pageId" column="page_id"/>
+    <result property="appName" column="app_name"/>
+    <result property="appVersion" column="app_version"/>
+    <result property="release" column="release"/>
+    <result property="environment" column="environment"/>
+    <result property="userId" column="user_id"/>
+    <result property="deviceId" column="device_id"/>
+    <result property="initialUrl" column="initial_url"/>
+    <result property="title" column="title"/>
+    <result property="startedAt" column="started_at"/>
+    <result property="lastSeenAt" column="last_seen_at"/>
+    <result property="chunkCount" column="chunk_count"/>
+    <result property="eventCount" column="event_count"/>
+    <result property="createTime" column="create_time"/>
+    <result property="updateTime" column="update_time"/>
+  </resultMap>
+
+  <resultMap id="MonitorReplayChunkResult" type="com.monitor.system.domain.monitor.MonitorReplayChunk">
+    <id property="id" column="id"/>
+    <result property="replaySessionId" column="replay_session_id"/>
+    <result property="sequenceNo" column="sequence_no"/>
+    <result property="startedAt" column="started_at"/>
+    <result property="endedAt" column="ended_at"/>
+    <result property="eventCount" column="event_count"/>
+    <result property="payloadJson" column="payload_json"/>
+    <result property="createTime" column="create_time"/>
+  </resultMap>
+
+  <sql id="selectReplaySessionColumns">
+    SELECT id, project_id, replay_id, session_id, page_id, app_name, app_version,
+           `release` AS release, environment, user_id, device_id, initial_url, title,
+           started_at, last_seen_at, chunk_count, event_count, create_time, update_time
+    FROM monitor_replay_session
+  </sql>
+
+  <select id="selectReplaySessionByReplayId" resultMap="MonitorReplaySessionResult">
+    <include refid="selectReplaySessionColumns"/>
+    WHERE replay_id = #{replayId}
+  </select>
+
+  <select id="selectReplaySessionList" resultMap="MonitorReplaySessionResult">
+    <include refid="selectReplaySessionColumns"/>
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="sessionId != null and sessionId != ''">
+        AND session_id = #{sessionId}
+      </if>
+      <if test="replayId != null and replayId != ''">
+        AND replay_id = #{replayId}
+      </if>
+      <if test="release != null and release != ''">
+        AND `release` = #{release}
+      </if>
+    </where>
+    ORDER BY last_seen_at DESC, id DESC
+  </select>
+
+  <insert id="insertReplaySession" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_replay_session (
+      project_id, replay_id, session_id, page_id, app_name, app_version, `release`, environment,
+      user_id, device_id, initial_url, title, started_at, last_seen_at, chunk_count, event_count
+    ) VALUES (
+      #{projectId}, #{replayId}, #{sessionId}, #{pageId}, #{appName}, #{appVersion}, #{release}, #{environment},
+      #{userId}, #{deviceId}, #{initialUrl}, #{title}, #{startedAt}, #{lastSeenAt}, #{chunkCount}, #{eventCount}
+    )
+  </insert>
+
+  <update id="updateReplaySession">
+    UPDATE monitor_replay_session
+    SET page_id = #{pageId},
+        app_name = #{appName},
+        app_version = #{appVersion},
+        `release` = #{release},
+        environment = #{environment},
+        user_id = #{userId},
+        device_id = #{deviceId},
+        initial_url = #{initialUrl},
+        title = #{title},
+        started_at = #{startedAt},
+        last_seen_at = #{lastSeenAt},
+        chunk_count = #{chunkCount},
+        event_count = #{eventCount}
+    WHERE id = #{id}
+  </update>
+
+  <insert id="insertReplayChunk" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_replay_chunk (
+      replay_session_id, sequence_no, started_at, ended_at, event_count, payload_json
+    ) VALUES (
+      #{replaySessionId}, #{sequenceNo}, #{startedAt}, #{endedAt}, #{eventCount}, #{payloadJson}
+    )
+  </insert>
+
+  <select id="selectReplayChunksBySessionId" resultMap="MonitorReplayChunkResult">
+    SELECT id, replay_session_id, sequence_no, started_at, ended_at, event_count, payload_json, create_time
+    FROM monitor_replay_chunk
+    WHERE replay_session_id = #{replaySessionId}
+    ORDER BY sequence_no ASC
+  </select>
+</mapper>

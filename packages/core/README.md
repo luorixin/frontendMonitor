@@ -33,6 +33,9 @@ captureError(new Error("manual error"))
 - `beforePushEvent(handler)`
 - `afterSend(handler)`
 - `flush()`
+- `flushSessionReplay()`
+- `getReplayId()`
+- `stopReplay()`
 - `sendLocal()`
 - `getOptions()`
 - `intersectionObserver()`
@@ -125,6 +128,33 @@ captureError(new Error("manual error"))
 - `clearContext()`
 
 SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcrumbs，随下一次 payload 上报。
+
+### Session Replay
+
+`sessionReplay` 用于开启录屏分片采集，当前会把 rrweb 事件按 chunk 上传到独立 replay 接口。
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `sessionReplay` | `boolean \| SessionReplayOptions` | `false` | 传 `true` 会启用默认 replay 配置；传对象时可覆盖更细的参数。 |
+
+`SessionReplayOptions` 子字段：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `enabled` | `false` | 是否启用录屏。 |
+| `endpoint` | `dsn` 自动替换为 `/replays/` | replay chunk 上报地址。 |
+| `sampleRate` | `0` | replay 采样率，和普通事件采样独立。 |
+| `flushInterval` | `5000` | chunk 定时发送间隔，单位毫秒。 |
+| `maxEvents` | `20` | 单个 chunk 最多包含的 rrweb event 数。 |
+| `maxPayloadBytes` | `131072` | 单个 replay chunk 最大体积。 |
+| `maskAllInputs` | `true` | 是否对输入框内容做 rrweb 级别脱敏。 |
+
+启用后：
+
+- `base.replayId` 会自动附带到普通事件 payload
+- `captureError()` 产生的错误事件可以在后端关联回放
+- 可通过 `getReplayId()` 获取当前会话 replay 标识
+- 可通过 `flushSessionReplay()` 和 `stopReplay()` 主动控制 replay
 
 ### 错误聚合
 

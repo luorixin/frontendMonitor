@@ -28,6 +28,8 @@ import {
 	  captureError,
 	  clearContext,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   seedInitHooks,
 	  sendLocal,
@@ -36,9 +38,11 @@ import {
 	  setRelease,
 	  setTag,
 	  setUser,
+  stopReplay,
   track
 } from "./manual"
 import { clearQueue } from "./queue"
+import { initSessionReplay } from "./replay"
 import { uuid } from "./utils"
 import type { MonitorOptions } from "./types"
 
@@ -67,6 +71,7 @@ export type {
   ResolvedMonitorOptions,
   ResourceErrorEventPayload,
   RouteChangeEventPayload,
+  SessionReplayOptions,
   TransportResult
 } from "./types"
 
@@ -97,6 +102,7 @@ export function init(options: MonitorOptions): void {
   initNavigationCapture()
   initPageExitCapture()
   initNetworkStatusCapture()
+  initSessionReplay()
   if (state.options.capture.performance) {
     initPerformanceCapture()
   }
@@ -121,6 +127,8 @@ export {
 	  captureError,
 	  clearContext,
   flush,
+  flushSessionReplay,
+  getReplayId,
   getOptions,
   intersectionDisconnect,
   intersectionObserver,
@@ -131,5 +139,6 @@ export {
 	  setRelease,
 	  setTag,
 	  setUser,
+  stopReplay,
   track
 }

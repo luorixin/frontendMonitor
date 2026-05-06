@@ -405,6 +405,59 @@
           "turn_count": 1
         }
       }
+    },
+    "019dfb25-f814-7a61-bf6a-d940a8f8b830": {
+      "session_id": "019dfb25-f814-7a61-bf6a-d940a8f8b830",
+      "leader_thread_id": "019dfb25-f814-7a61-bf6a-d940a8f8b830",
+      "updated_at": "2026-05-06T02:41:56.778Z",
+      "threads": {
+        "019dfb25-f814-7a61-bf6a-d940a8f8b830": {
+          "thread_id": "019dfb25-f814-7a61-bf6a-d940a8f8b830",
+          "kind": "leader",
+          "first_seen_at": "2026-05-06T02:41:56.778Z",
+          "last_seen_at": "2026-05-06T02:41:56.778Z",
+          "last_turn_id": "019dfb25-f82c-7081-8205-77063f16081e",
+          "turn_count": 1
+        }
+      }
+    },
+    "019dfb2f-4932-7360-94ff-2082dc11363d": {
+      "session_id": "019dfb2f-4932-7360-94ff-2082dc11363d",
+      "leader_thread_id": "019dfb2f-4932-7360-94ff-2082dc11363d",
+      "updated_at": "2026-05-06T02:57:44.512Z",
+      "threads": {
+        "019dfb2f-4932-7360-94ff-2082dc11363d": {
+          "thread_id": "019dfb2f-4932-7360-94ff-2082dc11363d",
+          "kind": "leader",
+          "first_seen_at": "2026-05-06T02:51:42.588Z",
+          "last_seen_at": "2026-05-06T02:51:42.588Z",
+          "last_turn_id": "019dfb2f-493f-7992-8e63-d45c679dd301",
+          "turn_count": 1
+        },
+        "019de64b-4914-74b2-8309-5b1f091f0474": {
+          "thread_id": "019de64b-4914-74b2-8309-5b1f091f0474",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-06T02:57:44.512Z",
+          "last_seen_at": "2026-05-06T02:57:44.512Z",
+          "last_turn_id": "019dfb2f-3c5d-7f72-a6f4-81cb5bcb32eb",
+          "turn_count": 1
+        }
+      }
+    },
+    "019dfb44-804b-77a1-aa10-544bbef24777": {
+      "session_id": "019dfb44-804b-77a1-aa10-544bbef24777",
+      "leader_thread_id": "019dfb44-804b-77a1-aa10-544bbef24777",
+      "updated_at": "2026-05-06T03:16:10.878Z",
+      "threads": {
+        "019dfb44-804b-77a1-aa10-544bbef24777": {
+          "thread_id": "019dfb44-804b-77a1-aa10-544bbef24777",
+          "kind": "leader",
+          "first_seen_at": "2026-05-06T03:16:10.878Z",
+          "last_seen_at": "2026-05-06T03:16:10.878Z",
+          "last_turn_id": "019dfb44-805e-7f01-983c-4d0a1b3d587a",
+          "turn_count": 1
+        }
+      }
     }
   }
 }

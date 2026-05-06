@@ -52,6 +52,8 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/api/v1/monitor/collect/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/v1/monitor/collect/**").permitAll()
             .requestMatchers(HttpMethod.OPTIONS, "/api/v1/monitor/collect/**").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/v1/monitor/replays/**").permitAll()
+            .requestMatchers(HttpMethod.OPTIONS, "/api/v1/monitor/replays/**").permitAll()
             .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
             .anyRequest().authenticated()
         )

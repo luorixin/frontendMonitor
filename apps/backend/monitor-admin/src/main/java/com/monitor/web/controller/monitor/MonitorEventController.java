@@ -7,6 +7,7 @@ import com.monitor.core.domain.TableDataInfo;
 import com.monitor.system.domain.monitor.MonitorEvent;
 import com.monitor.system.domain.monitor.query.MonitorEventQuery;
 import com.monitor.system.domain.monitor.vo.MonitorEventRawVo;
+import com.monitor.system.domain.monitor.vo.MonitorResolvedEventVo;
 import com.monitor.system.service.monitor.IMonitorEventService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,5 +39,10 @@ public class MonitorEventController {
   @GetMapping("/{id}/raw")
   public ApiResponse<MonitorEventRawVo> raw(@PathVariable("id") Long id) {
     return ApiResponse.ok(eventService.selectEventRawById(id));
+  }
+
+  @GetMapping("/{id}/resolved")
+  public ApiResponse<MonitorResolvedEventVo> resolved(@PathVariable("id") Long id) {
+    return ApiResponse.ok(eventService.selectResolvedEventById(id));
   }
 }

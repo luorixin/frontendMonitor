@@ -178,6 +178,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     event.setDeviceId(base.getDeviceId());
     event.setSessionId(base.getSessionId());
     event.setPageId(base.getPageId());
+    event.setReplayId(firstNonBlank(text(node, "replayId"), base.getReplayId()));
     event.setUrl(firstNonBlank(text(node, "url"), base.getUrl()));
     event.setTitle(base.getTitle());
     event.setMessage(resolveMessage(eventType, node));

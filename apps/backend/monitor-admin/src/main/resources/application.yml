@@ -64,6 +64,10 @@ app:
       rate-limit-per-minute: ${MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE:6000}
     alert:
       evaluate-cron: ${MONITOR_ALERT_EVALUATE_CRON:0 */1 * * * ?}
+    source-map:
+      max-file-bytes: ${MONITOR_SOURCE_MAP_MAX_FILE_BYTES:2097152}
+    replay:
+      max-payload-bytes: ${MONITOR_REPLAY_MAX_PAYLOAD_BYTES:262144}
     retention:
       event-days: ${MONITOR_RETENTION_EVENT_DAYS:30}
       aggregate-days: ${MONITOR_RETENTION_AGGREGATE_DAYS:180}

@@ -18,6 +18,7 @@ export function buildBasePayload(): BasePayload {
     deviceId: state.deviceId,
     environment: options.environment,
     pageId: state.pageId,
+    replayId: state.replayId ?? undefined,
     release: options.release,
     sdkVersion: SDK_VERSION,
     sessionId: state.sessionId,

@@ -1,13 +1,12 @@
 package com.monitor.system.domain.monitor.dto;
 
 import java.util.List;
-import java.util.Map;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
-public class MonitorCollectBaseDto {
+public class MonitorReplayChunkRequest {
   private String appName;
   private String appVersion;
   private String deviceId;
@@ -21,9 +20,8 @@ public class MonitorCollectBaseDto {
   private String sdkVersion;
   private String environment;
   private String release;
-  private Map<String, String> tags;
-  private Map<String, Object> contexts;
-  private List<Map<String, Object>> breadcrumbs;
-  private Long timestamp;
-  private Map<String, Integer> viewport;
+  private Integer sequence;
+  private Long startedAt;
+  private Long endedAt;
+  private List<Object> events;
 }

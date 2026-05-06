@@ -7,6 +7,11 @@ import {
 } from "./hooks"
 import { sendLocal as sendLocalizedPayloads } from "./localization"
 import { enqueueEvent, flushQueue } from "./queue"
+import {
+  flushReplayQueue,
+  getReplayId as getActiveReplayId,
+  stopSessionReplay
+} from "./replay"
 import type {
   AfterSendHandler,
   Breadcrumb,
@@ -97,6 +102,18 @@ export function afterSend(handler: AfterSendHandler): void {
 
 export function flush(): Promise<void> {
   return flushQueue()
+}
+
+export function flushSessionReplay(): Promise<void> {
+  return flushReplayQueue()
+}
+
+export function getReplayId(): string | null {
+  return getActiveReplayId()
+}
+
+export function stopReplay(): void {
+  stopSessionReplay()
 }
 
 export function sendLocal(): Promise<void> {

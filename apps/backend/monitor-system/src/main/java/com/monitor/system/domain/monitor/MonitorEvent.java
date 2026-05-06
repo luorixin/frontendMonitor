@@ -24,6 +24,7 @@ public class MonitorEvent extends BaseEntity {
   private String deviceId;
   private String sessionId;
   private String pageId;
+  private String replayId;
   private String url;
   private String title;
   private String requestMethod;

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitor.system.mapper.monitor.MonitorSourceMapArtifactMapper">
+
+  <resultMap id="MonitorSourceMapArtifactResult" type="com.monitor.system.domain.monitor.MonitorSourceMapArtifact">
+    <id property="id" column="id"/>
+    <result property="projectId" column="project_id"/>
+    <result property="release" column="release"/>
+    <result property="artifact" column="artifact"/>
+    <result property="fileName" column="file_name"/>
+    <result property="fileSize" column="file_size"/>
+    <result property="sourceMapJson" column="source_map_json"/>
+    <result property="createTime" column="create_time"/>
+    <result property="updateTime" column="update_time"/>
+  </resultMap>
+
+  <sql id="selectMonitorSourceMapArtifact">
+    SELECT id,
+           project_id,
+           `release` AS release,
+           artifact,
+           file_name,
+           file_size,
+           source_map_json,
+           create_time,
+           update_time
+    FROM monitor_source_map_artifact
+  </sql>
+
+  <select id="selectSourceMapList" resultMap="MonitorSourceMapArtifactResult">
+    <include refid="selectMonitorSourceMapArtifact"/>
+    <where>
+      <if test="projectId != null">
+        AND project_id = #{projectId}
+      </if>
+      <if test="release != null and release != ''">
+        AND `release` = #{release}
+      </if>
+      <if test="artifact != null and artifact != ''">
+        AND artifact LIKE CONCAT('%', #{artifact}, '%')
+      </if>
+    </where>
+    ORDER BY update_time DESC, id DESC
+  </select>
+
+  <select id="selectByProjectReleaseArtifact" resultMap="MonitorSourceMapArtifactResult">
+    <include refid="selectMonitorSourceMapArtifact"/>
+    WHERE project_id = #{projectId}
+      AND `release` = #{release}
+      AND artifact = #{artifact}
+  </select>
+
+  <select id="selectByProjectRelease" resultMap="MonitorSourceMapArtifactResult">
+    <include refid="selectMonitorSourceMapArtifact"/>
+    WHERE project_id = #{projectId}
+      AND `release` = #{release}
+    ORDER BY update_time DESC, id DESC
+  </select>
+
+  <insert id="insertSourceMap" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO monitor_source_map_artifact (
+      project_id, `release`, artifact, file_name, file_size, source_map_json
+    ) VALUES (
+      #{projectId}, #{release}, #{artifact}, #{fileName}, #{fileSize}, #{sourceMapJson}
+    )
+  </insert>
+
+  <update id="updateSourceMap">
+    UPDATE monitor_source_map_artifact
+    SET file_name = #{fileName},
+        file_size = #{fileSize},
+        source_map_json = #{sourceMapJson}
+    WHERE id = #{id}
+  </update>
+</mapper>

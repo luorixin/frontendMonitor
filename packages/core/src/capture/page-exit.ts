@@ -1,16 +1,19 @@
 import { addCleanup, state } from "../context"
 import { enqueueEvent, flushQueueOnExit } from "../queue"
+import { flushReplayQueue } from "../replay"
 import { createPageDwellEvent } from "./navigation"
 
 export function initPageExitCapture(): void {
   const onPageHide = () => {
     enqueueDwellEvent()
     void flushQueueOnExit()
+    void flushReplayQueue(true)
   }
 
   const onBeforeUnload = () => {
     enqueueDwellEvent()
     void flushQueueOnExit()
+    void flushReplayQueue(true)
   }
 
   window.addEventListener("pagehide", onPageHide)
@@ -19,6 +22,7 @@ export function initPageExitCapture(): void {
     if (document.visibilityState === "hidden") {
       enqueueDwellEvent()
       void flushQueueOnExit()
+      void flushReplayQueue(true)
     }
   })
 
