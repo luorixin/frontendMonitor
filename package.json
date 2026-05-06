@@ -14,7 +14,7 @@
     "dev:example:react": "pnpm --parallel --filter frontend-monitor-mock-server --filter frontend-monitor-examples-react dev",
     "dev:example:vue3": "pnpm --parallel --filter frontend-monitor-mock-server --filter frontend-monitor-examples-vue3 dev",
     "dev:mock": "pnpm --filter frontend-monitor-mock-server dev",
-    "publish-packages:local": "changeset publish",
+    "publish-packages:local": "node ./scripts/publish-npm-packages.mjs",
     "release": "pnpm build && pnpm test && pnpm version-packages",
     "release:local": "pnpm build && pnpm test && pnpm publish-packages:local",
     "test": "pnpm --filter frontend-monitor-core --filter frontend-monitor-vue3 --filter frontend-monitor-react --filter frontend-monitor-nuxt3 test",

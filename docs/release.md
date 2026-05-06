@@ -50,9 +50,9 @@ pnpm test
 当前 workflow 采用“两段式”：
 
 1. `changesets/action` 只负责创建或更新 release PR
-2. 真正的 `changeset publish` 由独立的 GitHub Actions step 执行
+2. 真正的 npm 发布由独立的 GitHub Actions step 执行，底层显式调用 `npm publish`
 
-这样做是为了避免 publish 行为被 action 内部的 npm 认证处理影响，更容易直接观察 trusted publishing / OIDC 是否命中。
+这样做是为了避免 publish 行为被 action 或第三方封装内部的 npm 认证处理影响，更容易直接观察 trusted publishing / OIDC 是否命中。
 
 这里有一个重要边界：
 
@@ -156,7 +156,7 @@ pnpm release:local
 
 - `pnpm version-packages`：本地应用 changeset，更新版本与 changelog。
 - `pnpm release`：本地准备 release 变更，会先 build/test，再执行 `changeset version`；适合生成版本号和 changelog。
-- `pnpm publish-packages:local`：执行本地 `changeset publish`，需要先完成 npm 登录。
+- `pnpm publish-packages:local`：按固定顺序调用 `npm publish` 发布 4 个包，需要先完成 npm 登录或满足 trusted publishing。本地环境不会附带 `--provenance`，只有 GitHub Actions OIDC 环境才会自动开启 provenance。
 - `pnpm release:local`：本地完整发布命令，会先 build/test 再 publish；同样需要 npm 凭据。
 
 ## 7. 推荐操作方式
