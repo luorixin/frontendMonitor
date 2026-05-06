@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -14,8 +15,66 @@ const packageDirs = [
   "packages/nuxt3"
 ]
 
+const dependencyFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]
+
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"))
+}
+
+const workspacePackages = new Map(
+  packageDirs.map(packageDir => {
+    const manifest = readJson(path.join(repoRoot, packageDir, "package.json"))
+    return [manifest.name, { directory: packageDir, version: manifest.version }]
+  })
+)
+
+function rewriteWorkspaceVersion(range, packageName) {
+  if (!range.startsWith("workspace:")) {
+    return range
+  }
+
+  const workspacePackage = workspacePackages.get(packageName)
+  if (!workspacePackage) {
+    throw new Error(`Unknown workspace dependency "${packageName}"`)
+  }
+
+  const workspaceRange = range.slice("workspace:".length)
+  if (workspaceRange === "*" || workspaceRange === "") {
+    return workspacePackage.version
+  }
+  if (workspaceRange === "^" || workspaceRange === "~") {
+    return `${workspaceRange}${workspacePackage.version}`
+  }
+  if (workspaceRange.startsWith("^") || workspaceRange.startsWith("~")) {
+    return `${workspaceRange[0]}${workspacePackage.version}`
+  }
+
+  return workspacePackage.version
+}
+
+function createPublishDirectory(packageDir, manifest) {
+  const sourceDir = path.join(repoRoot, packageDir)
+  const stagingRoot = mkdtempSync(path.join(os.tmpdir(), `${manifest.name.replaceAll("/", "-")}-`))
+  const publishDir = path.join(stagingRoot, path.basename(packageDir))
+
+  cpSync(sourceDir, publishDir, { recursive: true })
+
+  const publishManifestPath = path.join(publishDir, "package.json")
+  const publishManifest = readJson(publishManifestPath)
+
+  for (const field of dependencyFields) {
+    if (!publishManifest[field]) {
+      continue
+    }
+
+    for (const [dependencyName, dependencyRange] of Object.entries(publishManifest[field])) {
+      publishManifest[field][dependencyName] = rewriteWorkspaceVersion(dependencyRange, dependencyName)
+    }
+  }
+
+  writeFileSync(publishManifestPath, `${JSON.stringify(publishManifest, null, 2)}\n`)
+
+  return { publishDir, stagingRoot }
 }
 
 function npmViewVersion(packageName) {
@@ -53,9 +112,15 @@ for (const packageDir of packageDirs) {
   }
 
   console.log(`Publishing ${manifest.name}@${manifest.version}`)
-  execFileSync("npm", args, {
-    cwd,
-    stdio: "inherit",
-    env: process.env
-  })
+  const { publishDir, stagingRoot } = createPublishDirectory(packageDir, manifest)
+
+  try {
+    execFileSync("npm", args, {
+      cwd: publishDir,
+      stdio: "inherit",
+      env: process.env
+    })
+  } finally {
+    rmSync(stagingRoot, { force: true, recursive: true })
+  }
 }
