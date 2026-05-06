@@ -1,5 +1,12 @@
 # frontend-monitor-examples-nuxt3
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies
+  - frontend-monitor-nuxt3@2.0.0
+
 ## 0.1.2
 
 ### Patch Changes

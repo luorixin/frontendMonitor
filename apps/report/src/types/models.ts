@@ -39,6 +39,38 @@ export type TrendPoint = {
   pageViewCount?: number
 }
 
+export type WebVitalTrendPoint = {
+  bucket: string
+  metricName: "CLS" | "FCP" | "INP" | "LCP" | "TTFB"
+  navigationMode: "hard" | "soft"
+  avgValue: number
+  p75Value: number
+  sampleCount: number
+  goodCount: number
+  needsImprovementCount: number
+  poorCount: number
+}
+
+export type RequestPerformanceTrendPoint = {
+  bucket: string
+  avgDuration: number
+  p75Duration: number
+  maxDuration: number
+  sampleCount: number
+  errorCount: number
+}
+
+export type SlowRequest = {
+  url: string
+  method: string
+  transport: string
+  avgDuration: number
+  p75Duration: number
+  maxDuration: number
+  sampleCount: number
+  errorCount: number
+}
+
 export type EventTypeCount = {
   eventType: string
   totalCount: number

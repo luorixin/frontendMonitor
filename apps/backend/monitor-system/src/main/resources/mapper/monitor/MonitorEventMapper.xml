@@ -240,6 +240,26 @@
     ORDER BY bucket ASC
   </select>
 
+  <select id="selectPerformanceEvents" resultMap="MonitorEventResult">
+    SELECT id, occurred_at, event_name, resource_type, payload_json
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND event_type = 'performance'
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+    ORDER BY occurred_at ASC, id ASC
+  </select>
+
+  <select id="selectRequestPerformanceEvents" resultMap="MonitorEventResult">
+    SELECT id, occurred_at, request_method, request_status, duration, transport, url, payload_json
+    FROM monitor_event
+    WHERE project_id = #{projectId}
+      AND event_type = 'request_performance'
+      AND occurred_at <![CDATA[ >= ]]> #{startTime}
+      AND occurred_at <![CDATA[ <= ]]> #{endTime}
+    ORDER BY occurred_at ASC, id ASC
+  </select>
+
   <delete id="deleteEventsOlderThan">
     DELETE FROM monitor_event
     WHERE occurred_at <![CDATA[ < ]]> #{cutoff}

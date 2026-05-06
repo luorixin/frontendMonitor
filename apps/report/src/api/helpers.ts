@@ -16,7 +16,21 @@ export function unwrapApi<T>(payload: ApiEnvelope<T>) {
 }
 
 export function unwrapTable<T>(payload: TableEnvelope<T>) {
-  return payload
+  const rows = Array.isArray(payload.rows)
+    ? payload.rows
+    : Array.isArray(payload.data?.rows)
+      ? payload.data.rows
+      : []
+  const total = typeof payload.total === "number"
+    ? payload.total
+    : typeof payload.data?.total === "number"
+      ? payload.data.total
+      : rows.length
+
+  return {
+    rows,
+    total
+  }
 }
 
 export function getErrorMessage(reason: unknown, fallback: string) {

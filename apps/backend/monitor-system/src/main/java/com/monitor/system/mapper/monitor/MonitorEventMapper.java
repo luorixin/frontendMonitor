@@ -85,5 +85,17 @@ public interface MonitorEventMapper {
       @Param("endTime") LocalDateTime endTime
   );
 
+  List<MonitorEvent> selectPerformanceEvents(
+      @Param("projectId") Long projectId,
+      @Param("startTime") LocalDateTime startTime,
+      @Param("endTime") LocalDateTime endTime
+  );
+
+  List<MonitorEvent> selectRequestPerformanceEvents(
+      @Param("projectId") Long projectId,
+      @Param("startTime") LocalDateTime startTime,
+      @Param("endTime") LocalDateTime endTime
+  );
+
   int deleteEventsOlderThan(@Param("cutoff") LocalDateTime cutoff);
 }

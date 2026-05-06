@@ -1,5 +1,12 @@
 # frontend-monitor-examples-react
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies
+  - frontend-monitor-react@2.0.0
+
 ## 0.1.2
 
 ### Patch Changes

@@ -49,6 +49,8 @@ app:
       - "http://127.0.0.1:4175"
       - "http://localhost:4176"
       - "http://127.0.0.1:4176"
+      - "http://localhost:4177"
+      - "http://127.0.0.1:4177"
       - "http://localhost:8081"
       - "http://127.0.0.1:8081"
       - "http://localhost:19006"

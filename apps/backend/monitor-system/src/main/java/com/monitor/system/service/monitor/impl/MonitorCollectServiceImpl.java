@@ -275,7 +275,9 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       case "request_error" -> firstNonBlank(text(node, "errorMessage"), text(node, "message"));
       case "click", "exposure" -> text(node, "textPreview");
       case "custom" -> text(node, "eventName");
-      case "performance" -> text(node, "performanceType");
+      case "performance" -> "web_vital".equals(text(node, "performanceType"))
+          ? text(node, "metricName")
+          : text(node, "performanceType");
       case "request_performance" -> text(node, "url");
       case "page_view", "route_change" -> firstNonBlank(text(node, "to"), text(node, "url"));
       default -> text(node, "message");
@@ -287,7 +289,9 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       return text(node, "eventName");
     }
     if ("performance".equals(eventType)) {
-      return text(node, "performanceType");
+      return "web_vital".equals(text(node, "performanceType"))
+          ? text(node, "metricName")
+          : text(node, "performanceType");
     }
     if ("exposure".equals(eventType)) {
       return text(node, "action");
@@ -299,6 +303,9 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     String resourceType = text(node, "resourceType");
     if (resourceType != null) {
       return resourceType;
+    }
+    if ("web_vital".equals(text(node, "performanceType"))) {
+      return text(node, "metricName");
     }
     return text(node, "performanceType");
   }

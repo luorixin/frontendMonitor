@@ -1,5 +1,16 @@
 # frontend-monitor-vue3
 
+## 2.0.0
+
+### Major Changes
+
+- add web vitals
+
+### Patch Changes
+
+- Updated dependencies
+  - frontend-monitor-core@2.0.0
+
 ## 1.0.0
 
 ### Major Changes

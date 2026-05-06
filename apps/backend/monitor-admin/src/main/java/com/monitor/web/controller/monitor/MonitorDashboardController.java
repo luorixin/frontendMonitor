@@ -6,7 +6,10 @@ import com.monitor.system.domain.monitor.vo.MonitorDashboardOverviewVo;
 import com.monitor.system.domain.monitor.vo.MonitorEventTypeCountVo;
 import com.monitor.system.domain.monitor.vo.MonitorIssueVo;
 import com.monitor.system.domain.monitor.vo.MonitorPageStatsVo;
+import com.monitor.system.domain.monitor.vo.MonitorRequestPerformanceTrendPointVo;
+import com.monitor.system.domain.monitor.vo.MonitorSlowRequestVo;
 import com.monitor.system.domain.monitor.vo.MonitorTrendPointVo;
+import com.monitor.system.domain.monitor.vo.MonitorWebVitalTrendPointVo;
 import com.monitor.system.service.monitor.IMonitorDashboardService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,5 +49,20 @@ public class MonitorDashboardController {
   @GetMapping("/top-issues")
   public ApiResponse<List<MonitorIssueVo>> topIssues(MonitorDashboardQuery query) {
     return ApiResponse.ok(dashboardService.getTopIssues(query));
+  }
+
+  @GetMapping("/web-vitals-trend")
+  public ApiResponse<List<MonitorWebVitalTrendPointVo>> webVitalsTrend(MonitorDashboardQuery query) {
+    return ApiResponse.ok(dashboardService.getWebVitalTrend(query));
+  }
+
+  @GetMapping("/request-performance-trend")
+  public ApiResponse<List<MonitorRequestPerformanceTrendPointVo>> requestPerformanceTrend(MonitorDashboardQuery query) {
+    return ApiResponse.ok(dashboardService.getRequestPerformanceTrend(query));
+  }
+
+  @GetMapping("/slow-requests")
+  public ApiResponse<List<MonitorSlowRequestVo>> slowRequests(MonitorDashboardQuery query) {
+    return ApiResponse.ok(dashboardService.getSlowRequests(query));
   }
 }

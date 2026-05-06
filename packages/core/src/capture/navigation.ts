@@ -1,5 +1,6 @@
 import { getCurrentRoute } from "../base"
 import { recordBreadcrumb } from "../breadcrumb"
+import { flushSoftNavigationVitals, startSoftNavigationCapture } from "./performance"
 import { addCleanup, state } from "../context"
 import { debugLog, enqueueEvent } from "../queue"
 import type { PageDwellEventPayload, PageViewEventPayload, RouteChangeEventPayload } from "../types"
@@ -94,6 +95,8 @@ function emitRouteChange(
 
   if (!previousRoute || previousRoute === nextRoute) return
 
+  flushSoftNavigationVitals()
+
   enqueueEvent({
     from: previousRoute,
     timestamp: now(),
@@ -118,6 +121,11 @@ function emitRouteChange(
   }
 
   state.currentRoute = nextRoute
+  startSoftNavigationCapture({
+    from: previousRoute,
+    to: nextRoute,
+    trigger
+  })
 }
 
 function createPageViewEvent(currentRoute: string): PageViewEventPayload {

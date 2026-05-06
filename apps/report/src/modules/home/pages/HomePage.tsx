@@ -1,13 +1,27 @@
 import { Alert, Card, Col, Empty, List, Row, Space, Spin, Statistic, Table } from "antd"
 import { useEffect, useState } from "react"
-import { getDistribution, getOverview, getTopIssues, getTopPages, getTrend } from "../../../api/dashboard.api"
+import {
+  getDistribution,
+  getOverview,
+  getTopIssues,
+  getTopPages,
+  getTrend,
+  getWebVitalTrend
+} from "../../../api/dashboard.api"
 import { PageHeader } from "../../../components/PageHeader"
 import { IssueStatusTag, PriorityTag } from "../../../components/StatusTag"
+import { WebVitalTrendSection, type NavigationFilter } from "../../../components/WebVitalTrendSection"
 import { useProject } from "../../../app/project"
-import type { DashboardOverview, EventTypeCount, Issue, PageStats, TrendPoint } from "../../../types/models"
-import { formatMetric } from "../../../utils/date"
+import type {
+  DashboardOverview,
+  EventTypeCount,
+  Issue,
+  PageStats,
+  TrendPoint,
+  WebVitalTrendPoint
+} from "../../../types/models"
+import { formatMetric, toBackendDateTime } from "../../../utils/date"
 import { buildParams } from "../../../utils/query"
-import { toBackendDateTime } from "../../../utils/date"
 
 const initialOverview: DashboardOverview = {
   errorEvents: 0,
@@ -26,6 +40,8 @@ export function HomePage() {
   const [distribution, setDistribution] = useState<EventTypeCount[]>([])
   const [topPages, setTopPages] = useState<PageStats[]>([])
   const [topIssues, setTopIssues] = useState<Issue[]>([])
+  const [webVitalTrend, setWebVitalTrend] = useState<WebVitalTrendPoint[]>([])
+  const [navigationMode, setNavigationMode] = useState<NavigationFilter>("all")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -46,14 +62,16 @@ export function HomePage() {
       getTrend(params),
       getDistribution(params),
       getTopPages(params),
-      getTopIssues(params)
+      getTopIssues(params),
+      getWebVitalTrend(params)
     ])
-      .then(([overviewData, trendData, distributionData, topPagesData, topIssuesData]) => {
+      .then(([overviewData, trendData, distributionData, topPagesData, topIssuesData, webVitalTrendData]) => {
         setOverview(overviewData)
         setTrend(trendData)
         setDistribution(distributionData)
         setTopPages(topPagesData)
         setTopIssues(topIssuesData)
+        setWebVitalTrend(webVitalTrendData)
       })
       .catch(reason => {
         setError(reason instanceof Error ? reason.message : "首页数据加载失败")
@@ -71,7 +89,7 @@ export function HomePage() {
       <Row gutter={[16, 16]}>
         <Col span={8}><Card><Statistic title="总事件数" value={formatMetric(overview.totalEvents)} /></Card></Col>
         <Col span={8}><Card><Statistic title="错误事件" value={formatMetric(overview.errorEvents)} /></Card></Col>
-        <Col span={8}><Card><Statistic suffix="%" title="错误率" value={overview.errorRate} precision={2} /></Card></Col>
+        <Col span={8}><Card><Statistic precision={2} suffix="%" title="错误率" value={overview.errorRate} /></Card></Col>
         <Col span={8}><Card><Statistic title="PV" value={formatMetric(overview.pageViews)} /></Card></Col>
         <Col span={8}><Card><Statistic title="会话数" value={formatMetric(overview.uniqueSessions)} /></Card></Col>
         <Col span={8}><Card><Statistic title="设备数" value={formatMetric(overview.uniqueDevices)} /></Card></Col>
@@ -108,6 +126,12 @@ export function HomePage() {
           </Card>
         </Col>
       </Row>
+      <WebVitalTrendSection
+        data={webVitalTrend}
+        mode={navigationMode}
+        onModeChange={setNavigationMode}
+        title="Web Vitals 趋势"
+      />
       <Row gutter={[16, 16]}>
         <Col span={12}>
           <Card title="Top Pages">

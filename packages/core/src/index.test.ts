@@ -135,6 +135,7 @@ class FakeImage {
 }
 
 const intersectionObservers: FakeIntersectionObserver[] = []
+const performanceObservers: FakePerformanceObserver[] = []
 
 class FakeIntersectionObserver {
   disconnect = vi.fn(() => undefined)
@@ -166,6 +167,39 @@ class FakeIntersectionObserver {
         }
       ] as IntersectionObserverEntry[],
       this as unknown as IntersectionObserver
+    )
+  }
+}
+
+class FakePerformanceObserver {
+  static supportedEntryTypes = [
+    "resource",
+    "largest-contentful-paint",
+    "layout-shift",
+    "event"
+  ]
+
+  disconnect = vi.fn(() => undefined)
+  observedType?: string
+
+  constructor(
+    private readonly callback: PerformanceObserverCallback
+  ) {
+    performanceObservers.push(this)
+  }
+
+  observe(options: PerformanceObserverInit): void {
+    this.observedType = options.type ?? options.entryTypes?.[0]
+  }
+
+  trigger(entries: PerformanceEntry[]): void {
+    this.callback(
+      {
+        getEntries: () => entries,
+        getEntriesByName: () => entries,
+        getEntriesByType: () => entries
+      } as PerformanceObserverEntryList,
+      this as unknown as PerformanceObserver
     )
   }
 }
@@ -231,14 +265,21 @@ describe("frontend-monitor-core", () => {
       "IntersectionObserver",
       FakeIntersectionObserver as unknown as typeof IntersectionObserver
     )
+    vi.stubGlobal(
+      "PerformanceObserver",
+      FakePerformanceObserver as unknown as typeof PerformanceObserver
+    )
     vi.stubGlobal("Image", FakeImage as unknown as typeof Image)
     window.fetch = fetchMock as typeof window.fetch
     window.XMLHttpRequest =
       FakeXMLHttpRequest as unknown as typeof XMLHttpRequest
     window.IntersectionObserver =
       FakeIntersectionObserver as unknown as typeof IntersectionObserver
+    window.PerformanceObserver =
+      FakePerformanceObserver as unknown as typeof PerformanceObserver
     window.Image = FakeImage as unknown as typeof Image
     intersectionObservers.splice(0, intersectionObservers.length)
+    performanceObservers.splice(0, performanceObservers.length)
     rrwebEmit = null
     rrwebRecordMock.mockReset()
     rrwebRecordMock.mockImplementation(
@@ -638,6 +679,62 @@ describe("frontend-monitor-core", () => {
     )
 
     expect(types).toContain("route_change")
+  })
+
+  it("captures soft navigation web vitals after route changes", async () => {
+    vi.spyOn(window.performance, "now").mockReturnValue(0)
+
+    init({
+      appName: "demo",
+      batchSize: 20,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        performance: true,
+        promiseRejection: false,
+        routeChange: true,
+        xhrError: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    history.pushState({}, "", "/products")
+
+    performanceObservers.find(observer => observer.observedType === "largest-contentful-paint")
+      ?.trigger([{ entryType: "largest-contentful-paint", name: "", startTime: 50 } as PerformanceEntry])
+    performanceObservers.find(observer => observer.observedType === "layout-shift")
+      ?.trigger([{ entryType: "layout-shift", name: "", startTime: 60, value: 0.06, hadRecentInput: false } as PerformanceEntry & { value: number; hadRecentInput: boolean }])
+    performanceObservers.find(observer => observer.observedType === "event")
+      ?.trigger([{ entryType: "event", name: "click", startTime: 70, duration: 160, interactionId: 1 } as PerformanceEntry & { duration: number; interactionId: number }])
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden"
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+    await flush()
+
+    const softNavVitals = sentPayloads.flatMap(payload => payload.events)
+      .filter(event =>
+        event.type === "performance" &&
+        event.performanceType === "web_vital" &&
+        event.softNavigation === true
+      )
+
+    expect(softNavVitals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metricName: "LCP",
+          navigationType: "soft-pushState",
+          routeFrom: "/",
+          routeTo: "/products",
+          softNavigation: true,
+          value: 50
+        })
+      ])
+    )
   })
 
   it("stores payloads locally when localization is enabled and sends them on demand", async () => {
@@ -1081,6 +1178,73 @@ describe("frontend-monitor-core", () => {
     expect(sentPayloads[0]?.events[0]?.type).toBe("performance")
     expect(sentPayloads[0]?.events[0]?.metrics.ttfb).toBe(30)
     expect(sentPayloads[0]?.events[0]?.metrics.firstContentfulPaint).toBe(55)
+  })
+
+  it("captures web vital performance entries when enabled", async () => {
+    vi.spyOn(window.performance, "getEntriesByType").mockImplementation(
+      (entryType: string) => {
+        if (entryType === "navigation") {
+          return [
+            {
+              connectEnd: 25,
+              connectStart: 10,
+              domContentLoadedEventEnd: 140,
+              domInteractive: 120,
+              domainLookupEnd: 9,
+              domainLookupStart: 4,
+              loadEventEnd: 210,
+              redirectEnd: 0,
+              redirectStart: 0,
+              requestStart: 30,
+              responseEnd: 90,
+              responseStart: 60,
+              startTime: 0,
+              type: "navigate"
+            }
+          ] as PerformanceEntryList
+        }
+        return [] as PerformanceEntryList
+      }
+    )
+
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        performance: true,
+        promiseRejection: false,
+        routeChange: false,
+        xhrError: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    performanceObservers.find(observer => observer.observedType === "largest-contentful-paint")
+      ?.trigger([{ entryType: "largest-contentful-paint", name: "", startTime: 2400 } as PerformanceEntry])
+    performanceObservers.find(observer => observer.observedType === "layout-shift")
+      ?.trigger([{ entryType: "layout-shift", name: "", startTime: 0, value: 0.08, hadRecentInput: false } as PerformanceEntry & { value: number; hadRecentInput: boolean }])
+    performanceObservers.find(observer => observer.observedType === "event")
+      ?.trigger([{ entryType: "event", name: "click", startTime: 0, duration: 180, interactionId: 1 } as PerformanceEntry & { duration: number; interactionId: number }])
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden"
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+    await flush()
+
+    const performanceEvents = sentPayloads.flatMap(payload => payload.events)
+      .filter(event => event.type === "performance" && event.performanceType === "web_vital")
+
+    expect(performanceEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metricName: "LCP", rating: "good", value: 2400 })
+      ])
+    )
   })
 
   it("destroy removes exit listeners and clears pending flush timers", async () => {

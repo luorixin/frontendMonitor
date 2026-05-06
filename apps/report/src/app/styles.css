@@ -131,6 +131,50 @@ body {
   min-height: 240px;
 }
 
+.trend-card-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.trend-card {
+  min-height: 220px;
+}
+
+.trend-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trend-card-header {
+  width: 100%;
+}
+
+.trend-card-chart {
+  min-height: 76px;
+}
+
+.trend-card-meta {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.metric-sparkline {
+  display: block;
+  height: 76px;
+  width: 100%;
+}
+
+.trend-empty {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  height: 76px;
+  justify-content: center;
+}
+
 @media (max-width: 1180px) {
   .split-grid {
     grid-template-columns: 1fr;

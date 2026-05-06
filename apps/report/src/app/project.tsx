@@ -30,9 +30,10 @@ export function ProjectProvider(props: { children: ReactNode }) {
     setLoading(true)
     try {
       const table = await listProjects(buildParams({ pageNum: 1, pageSize: 100 }))
-      setProjects(table.rows)
-      if (!currentProjectId && table.rows[0]) {
-        setCurrentProjectId(table.rows[0].id)
+      const nextProjects = Array.isArray(table.rows) ? table.rows : []
+      setProjects(nextProjects)
+      if (!currentProjectId && nextProjects[0]) {
+        setCurrentProjectId(nextProjects[0].id)
       }
     } finally {
       setLoading(false)
@@ -48,7 +49,7 @@ export function ProjectProvider(props: { children: ReactNode }) {
   }, [isAuthenticated])
 
   const currentProject = useMemo(
-    () => projects.find(project => project.id === currentProjectId) ?? null,
+    () => (Array.isArray(projects) ? projects : []).find(project => project.id === currentProjectId) ?? null,
     [currentProjectId, projects]
   )
 

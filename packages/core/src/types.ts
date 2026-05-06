@@ -233,6 +233,17 @@ export type PerformanceEventPayload =
       duration: number
       transport: "fetch" | "xhr"
     }
+  | BaseEvent & {
+      type: "performance"
+      performanceType: "web_vital"
+      metricName: "CLS" | "FCP" | "INP" | "LCP" | "TTFB"
+      navigationType?: string
+      routeFrom?: string
+      routeTo?: string
+      rating?: "good" | "needs-improvement" | "poor"
+      softNavigation?: boolean
+      value: number
+    }
 
 export type PageViewEventPayload = BaseEvent & {
   type: "page_view"

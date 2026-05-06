@@ -6,6 +6,12 @@ export type ApiEnvelope<T> = {
 }
 
 export type TableEnvelope<T> = {
+  code?: number
+  data?: {
+    rows?: T[]
+    total?: number
+  }
+  msg?: string
   rows: T[]
   total: number
 }

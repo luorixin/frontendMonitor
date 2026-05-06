@@ -11,6 +11,18 @@ import type {
 
 type CleanupFn = () => void
 
+type SoftNavigationState = {
+  active: boolean
+  clsValue: number
+  fromRoute: string
+  hasClsSample: boolean
+  latestLcp: number
+  maxInp: number
+  startedAt: number
+  toRoute: string
+  trigger: string
+}
+
 export type MonitorState = {
   cleanups: CleanupFn[]
   consoleErrorOriginal: typeof console.error | null
@@ -53,6 +65,7 @@ export type MonitorState = {
   replayTransportQueue: ReplayChunkPayload[]
   retryTimer: ReturnType<typeof setTimeout> | null
   sessionId: string
+  softNavigation: SoftNavigationState
   tags: Record<string, string>
 }
 
@@ -91,6 +104,17 @@ export const state: MonitorState = {
   replayTransportQueue: [],
   retryTimer: null,
   sessionId: "",
+  softNavigation: {
+    active: false,
+    clsValue: 0,
+    fromRoute: "",
+    hasClsSample: false,
+    latestLcp: 0,
+    maxInp: 0,
+    startedAt: 0,
+    toRoute: "",
+    trigger: ""
+  },
   tags: {}
 }
 
@@ -142,5 +166,16 @@ export function resetState(): void {
   state.replayTransportQueue = []
   state.retryTimer = clearTimer(state.retryTimer)
   state.sessionId = ""
+  state.softNavigation = {
+    active: false,
+    clsValue: 0,
+    fromRoute: "",
+    hasClsSample: false,
+    latestLcp: 0,
+    maxInp: 0,
+    startedAt: 0,
+    toRoute: "",
+    trigger: ""
+  }
   state.tags = {}
 }

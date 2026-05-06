@@ -1,5 +1,11 @@
 # frontend-monitor-core
 
+## 2.0.0
+
+### Major Changes
+
+- add web vitals
+
 ## 1.0.0
 
 ### Major Changes

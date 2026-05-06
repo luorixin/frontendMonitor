@@ -115,6 +115,101 @@ class MonitorModuleIntegrationTest {
   }
 
   @Test
+  void shouldReturnWebVitalsTrend() throws Exception {
+    long now = System.currentTimeMillis();
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/perf", "Perf", "device-wv", "session-wv", "page-wv"),
+        "events", List.of(
+            Map.of(
+                "type", "performance",
+                "performanceType", "navigation",
+                "metrics", Map.of(
+                    "firstContentfulPaint", 1200,
+                    "ttfb", 340
+                ),
+                "timestamp", now,
+                "url", "http://localhost:4173/perf"
+            ),
+            Map.of(
+                "type", "performance",
+                "performanceType", "web_vital",
+                "metricName", "LCP",
+                "value", 2200,
+                "rating", "good",
+                "softNavigation", true,
+                "timestamp", now,
+                "url", "http://localhost:4173/perf"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.received").value(2));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/web-vitals-trend")
+            .param("projectId", "1")
+            .param("granularity", "hour")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[?(@.metricName=='FCP' && @.navigationMode=='hard')]").isNotEmpty())
+        .andExpect(jsonPath("$.data[?(@.metricName=='TTFB' && @.navigationMode=='hard')]").isNotEmpty())
+        .andExpect(jsonPath("$.data[?(@.metricName=='LCP' && @.navigationMode=='soft')]").isNotEmpty());
+  }
+
+  @Test
+  void shouldReturnRequestPerformanceInsights() throws Exception {
+    long now = System.currentTimeMillis();
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/network", "Network", "device-rp", "session-rp", "page-rp"),
+        "events", List.of(
+            Map.of(
+                "type", "request_performance",
+                "method", "GET",
+                "status", 200,
+                "duration", 180,
+                "transport", "fetch",
+                "timestamp", now,
+                "url", "/api/projects"
+            ),
+            Map.of(
+                "type", "request_performance",
+                "method", "GET",
+                "status", 503,
+                "duration", 620,
+                "transport", "fetch",
+                "timestamp", now,
+                "url", "/api/projects"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.received").value(2));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/request-performance-trend")
+            .param("projectId", "1")
+            .param("granularity", "hour")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].sampleCount").value(greaterThanOrEqualTo(2)))
+        .andExpect(jsonPath("$.data[0].errorCount").value(greaterThanOrEqualTo(1)));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/slow-requests")
+            .param("projectId", "1")
+            .param("granularity", "hour")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].url").value("/api/projects"))
+        .andExpect(jsonPath("$.data[0].errorCount").value(greaterThanOrEqualTo(1)));
+  }
+
+  @Test
   void shouldInitializeSchemaThroughFlywayMigrations() {
     Integer appliedMigrations = jdbcTemplate.queryForObject(
         "select count(*) from flyway_schema_history where success = true",

@@ -16,6 +16,7 @@ const { Content, Header, Sider } = Layout
 
 const items = [
   { icon: <DashboardOutlined />, key: "/", label: <Link to="/">首页</Link> },
+  { icon: <AlertOutlined />, key: "/performance", label: <Link to="/performance">性能分析</Link> },
   { icon: <BarChartOutlined />, key: "/reports", label: <Link to="/reports">报表</Link> },
   { icon: <AppstoreOutlined />, key: "/manage", label: <Link to="/manage">管理</Link> },
   { icon: <CodeOutlined />, key: "/source-maps", label: <Link to="/source-maps">Source Map</Link> }
