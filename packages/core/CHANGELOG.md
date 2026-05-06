@@ -1,5 +1,11 @@
 # frontend-monitor-core
 
+## 1.0.0
+
+### Major Changes
+
+- eee8ee8: add session replay sourcemap
+
 ## 0.2.0
 
 ### Minor Changes
