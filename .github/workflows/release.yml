@@ -47,13 +47,31 @@ jobs:
         run: pnpm test
 
       - name: Create release PR or publish
+        id: changesets
         uses: changesets/action@v1
         with:
           commit: "chore: release packages"
           title: "chore: release packages"
           version: pnpm version-packages
-          publish: pnpm publish-packages:local
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish preflight diagnostics
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: |
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
+          echo "NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}"
+          echo "NPM_TOKEN set: ${NPM_TOKEN:+yes}"
+          npm config get registry
+          npm view frontend-monitor-core version
+          npm view frontend-monitor-vue3 version
+          npm view frontend-monitor-react version
+          npm view frontend-monitor-nuxt3 version
+
+      - name: Publish packages
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: pnpm publish-packages:local
+        env:
           NPM_CONFIG_PROVENANCE: true

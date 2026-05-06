@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -41,6 +42,9 @@ class MonitorModuleIntegrationTest {
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
 
   @TestConfiguration
   static class TestBeans {
@@ -106,6 +110,22 @@ class MonitorModuleIntegrationTest {
             .with(user("admin")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.total", greaterThanOrEqualTo(2)));
+  }
+
+  @Test
+  void shouldInitializeSchemaThroughFlywayMigrations() {
+    Integer appliedMigrations = jdbcTemplate.queryForObject(
+        "select count(*) from flyway_schema_history where success = true",
+        Integer.class
+    );
+    Integer seededProjects = jdbcTemplate.queryForObject(
+        "select count(*) from monitor_project where project_key = 'demo-project-key'",
+        Integer.class
+    );
+
+    org.junit.jupiter.api.Assertions.assertNotNull(appliedMigrations);
+    org.junit.jupiter.api.Assertions.assertTrue(appliedMigrations >= 2);
+    org.junit.jupiter.api.Assertions.assertEquals(1, seededProjects);
   }
 
   @Test

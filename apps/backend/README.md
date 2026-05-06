@@ -90,8 +90,7 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
   - `MonitorIssueController`
 - 运行配置：
   - `application.yml`
-  - `db/schema.sql`
-  - `db/data.sql`
+  - `db/migration/`
 
 ## 当前能力
 
@@ -165,9 +164,10 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 
 ## 数据模型
 
-核心表定义位于：
+数据库迁移脚本位于：
 
-- [monitor-admin/src/main/resources/db/schema.sql](./monitor-admin/src/main/resources/db/schema.sql)
+- [monitor-admin/src/main/resources/db/migration/V1__init_schema.sql](./monitor-admin/src/main/resources/db/migration/V1__init_schema.sql)
+- [monitor-admin/src/main/resources/db/migration/V2__seed_demo_data.sql](./monitor-admin/src/main/resources/db/migration/V2__seed_demo_data.sql)
 
 当前包括：
 
@@ -186,10 +186,6 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 - `monitor_issue` 按指纹聚合同类问题
 - 小时 / 天聚合表用于 dashboard 趋势统计
 - 告警规则和触发记录用于基础运营闭环
-
-初始化种子数据位于：
-
-- [monitor-admin/src/main/resources/db/data.sql](./monitor-admin/src/main/resources/db/data.sql)
 
 当前默认会插入一个示例项目：
 
@@ -232,14 +228,15 @@ MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES=4096
 MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE=6000
 MONITOR_RETENTION_EVENT_DAYS=30
 MONITOR_RETENTION_AGGREGATE_DAYS=180
-
-SPRING_SQL_INIT_MODE=never
 ```
 
-如果你希望启动时自动建表并灌入测试数据，可以显式打开：
+默认情况下，应用启动会自动执行 Flyway 迁移。新库会按版本顺序执行 `V1`、`V2`，已有旧库会在首次启动时写入 baseline 版本记录，然后继续执行后续迁移。
+
+如果你需要调整兼容旧库的基线行为，可以覆盖：
 
 ```bash
-SPRING_SQL_INIT_MODE=always
+SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
+SPRING_FLYWAY_BASELINE_VERSION=2
 ```
 
 ## 本地启动
@@ -333,7 +330,7 @@ mvn -f apps/backend/pom.xml test
 ## 建议联调顺序
 
 1. 启动 MySQL、Redis 和后端服务
-2. 确认 `schema.sql` / `data.sql` 已执行
+2. 确认 Flyway 迁移已执行，并且库里存在 `flyway_schema_history`
 3. 用 `demo-project-key` 配置前端 SDK 的 `dsn`
 4. 先打通 `POST /api/v1/monitor/collect/demo-project-key`
 5. 再登录后台，验证项目、事件、issue、dashboard 查询链路

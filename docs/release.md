@@ -47,6 +47,13 @@ pnpm test
 
 发布工作流使用 GitHub Actions 的 trusted publishing，不依赖长期存在的 `NPM_TOKEN`。
 
+当前 workflow 采用“两段式”：
+
+1. `changesets/action` 只负责创建或更新 release PR
+2. 真正的 `changeset publish` 由独立的 GitHub Actions step 执行
+
+这样做是为了避免 publish 行为被 action 内部的 npm 认证处理影响，更容易直接观察 trusted publishing / OIDC 是否命中。
+
 这里有一个重要边界：
 
 - GitHub Actions 里的 `release.yml` 可以直接发布，不需要你额外执行 `npm login`
@@ -103,7 +110,7 @@ pnpm test
 5. 观察 `release.yml`：
    第一次通常会创建或更新 release PR。
 6. 合并 release PR 后再次观察 `release.yml`：
-   这一次才会进入真正的 publish 分支。
+   这一次才会进入真正的 publish 分支，并先打印 publish preflight diagnostics。
 7. 发布成功后，到 npm 包页面确认新版本已经出现。
 
 ### 4.3 推荐的安全收口
@@ -302,6 +309,23 @@ npm error 404 'frontend-monitor-nuxt3@0.2.0' is not in this registry
 - 包名不存在
 - 版本号 `0.2.0` 有问题
 - Changesets 版本策略有问题
+
+### workflow 日志里看什么
+
+如果 publish 前诊断 step 已经打开，优先看这几行：
+
+- `ACTIONS_ID_TOKEN_REQUEST_URL set: yes`
+- `ACTIONS_ID_TOKEN_REQUEST_TOKEN set: yes`
+- `NODE_AUTH_TOKEN set:`
+- `NPM_TOKEN set:`
+
+期望状态通常是：
+
+- 两个 `ACTIONS_ID_TOKEN_*` 都是 `yes`
+- `NODE_AUTH_TOKEN` / `NPM_TOKEN` 都为空
+
+如果 OIDC 变量缺失，说明 trusted publishing 根本没有可用身份。
+如果 token 变量存在，说明 job 可能被传统 token 认证污染。
 
 ### release PR 已创建，但没有真正发布
 

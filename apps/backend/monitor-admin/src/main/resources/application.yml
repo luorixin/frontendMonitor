@@ -12,11 +12,11 @@ spring:
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:luorixin}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  sql:
-    init:
-      mode: ${SPRING_SQL_INIT_MODE:never}
-      schema-locations: classpath:db/schema.sql
-      data-locations: classpath:db/data.sql
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${SPRING_FLYWAY_BASELINE_VERSION:2}
+    locations: classpath:db/migration
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}

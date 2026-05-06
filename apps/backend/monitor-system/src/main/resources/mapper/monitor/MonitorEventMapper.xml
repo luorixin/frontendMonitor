@@ -42,7 +42,7 @@
 
   <sql id="selectMonitorEvent">
     SELECT id, project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
-           app_name, app_version, environment, release, user_id, device_id, session_id, page_id, url, title,
+           app_name, app_version, environment, `release`, user_id, device_id, session_id, page_id, url, title,
            request_method, request_status, duration, message, selector, resource_type,
            transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
            payload_json, base_json, create_time
@@ -52,7 +52,7 @@
   <insert id="insertEvent" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO monitor_event (
       project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
-      app_name, app_version, environment, release, user_id, device_id, session_id, page_id, url, title,
+      app_name, app_version, environment, `release`, user_id, device_id, session_id, page_id, url, title,
       request_method, request_status, duration, message, selector, resource_type,
       transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
       payload_json, base_json
@@ -87,7 +87,7 @@
         AND environment = #{environment}
       </if>
       <if test="release != null and release != ''">
-        AND release = #{release}
+        AND `release` = #{release}
       </if>
       <if test="userId != null and userId != ''">
         AND user_id = #{userId}

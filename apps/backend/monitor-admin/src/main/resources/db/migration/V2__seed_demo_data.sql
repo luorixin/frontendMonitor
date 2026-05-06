@@ -1,8 +1,6 @@
--- ========== sys_user ==========
 INSERT INTO sys_user (id, username, email, password, nickname, status)
 VALUES (1, 'admin', 'admin@example.com', '$2a$10$dyQXiE5/8ReGrdMDJp3d/O4h9F/BmEy5WK.3W/FdcwTIjVoMYKS4C', '管理员', 1);
 
--- ========== monitor_project ==========
 INSERT INTO monitor_project (
   id,
   project_name,
