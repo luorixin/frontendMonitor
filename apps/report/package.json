@@ -1,0 +1,24 @@
+{
+  "name": "frontend-monitor-report",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.2.2",
+    "ant-design": "^1.0.0",
+    "axios": "^1.16.0",
+    "dayjs": "^1.11.20",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.15.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4"
+  }
+}

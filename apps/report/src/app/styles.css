@@ -1,0 +1,152 @@
+:root {
+  color: #0f172a;
+  font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(22, 119, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #f3f6fb 0%, #eef2f6 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.shell-layout {
+  min-height: 100vh;
+}
+
+.brand-block {
+  padding: 20px 20px 12px;
+}
+
+.shell-header {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #edf2f7;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.shell-header .ant-typography {
+  display: block;
+}
+
+.shell-content {
+  padding: 20px 24px 28px;
+}
+
+.content-top {
+  margin-bottom: 16px;
+}
+
+.filter-bar {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 12px 16px 0;
+}
+
+.filter-project {
+  width: 220px;
+}
+
+.page-stack {
+  display: flex;
+  width: 100%;
+}
+
+.page-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header .ant-typography {
+  margin-bottom: 0;
+}
+
+.login-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-card {
+  max-width: 460px;
+  width: 100%;
+}
+
+.login-kicker {
+  color: #1677ff;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.login-alert {
+  margin-bottom: 16px;
+}
+
+.split-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1.4fr 1fr;
+}
+
+.metric-card {
+  min-height: 132px;
+}
+
+.json-viewer {
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+}
+
+.loading-block {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 240px;
+}
+
+@media (max-width: 1180px) {
+  .split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .shell-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    height: auto;
+    padding: 16px;
+  }
+
+  .filter-bar {
+    display: grid;
+  }
+}

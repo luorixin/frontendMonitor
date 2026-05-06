@@ -10,6 +10,8 @@ coverage
 **/.nuxt/
 **/dist/
 **/target/
+.runtime/
 .npmrc
 .DS_Store
 .idea/
+**/.m2/
