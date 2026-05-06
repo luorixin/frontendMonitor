@@ -6,11 +6,6 @@ import { fileURLToPath } from "node:url"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, "..")
 const dryRun = process.argv.includes("--dry-run")
-const provenanceRequested = process.env.NPM_CONFIG_PROVENANCE === "true"
-const hasGitHubOidc =
-  Boolean(process.env.GITHUB_ACTIONS) &&
-  Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL) &&
-  Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)
 
 const packageDirs = [
   "packages/core",
@@ -52,10 +47,6 @@ for (const packageDir of packageDirs) {
   }
 
   const args = ["publish", "--access", "public"]
-
-  if (provenanceRequested && hasGitHubOidc) {
-    args.push("--provenance")
-  }
 
   if (dryRun) {
     args.push("--dry-run")

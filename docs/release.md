@@ -156,7 +156,7 @@ pnpm release:local
 
 - `pnpm version-packages`：本地应用 changeset，更新版本与 changelog。
 - `pnpm release`：本地准备 release 变更，会先 build/test，再执行 `changeset version`；适合生成版本号和 changelog。
-- `pnpm publish-packages:local`：按固定顺序调用 `npm publish` 发布 4 个包，需要先完成 npm 登录或满足 trusted publishing。本地环境不会附带 `--provenance`，只有 GitHub Actions OIDC 环境才会自动开启 provenance。
+- `pnpm publish-packages:local`：按固定顺序调用 `npm publish` 发布 4 个包，需要先完成 npm 登录或满足 trusted publishing。是否生成 provenance 由 npm 在受支持的 CI/provider 场景下自动决定，不再手工强制开启。
 - `pnpm release:local`：本地完整发布命令，会先 build/test 再 publish；同样需要 npm 凭据。
 
 ## 7. 推荐操作方式
