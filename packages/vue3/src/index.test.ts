@@ -9,6 +9,8 @@ vi.mock("frontend-monitor-core", () => ({
   captureError: captureErrorMock,
   clearContext: vi.fn(),
   flush: vi.fn(),
+  flushSessionReplay: vi.fn(),
+  getReplayId: vi.fn(),
   getOptions: vi.fn(),
   init: initMock,
   intersectionDisconnect: vi.fn(),
@@ -20,6 +22,7 @@ vi.mock("frontend-monitor-core", () => ({
   setRelease: vi.fn(),
   setTag: vi.fn(),
   setUser: vi.fn(),
+  stopReplay: vi.fn(),
   track: vi.fn()
 }))
 

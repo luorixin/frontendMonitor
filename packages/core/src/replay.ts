@@ -18,12 +18,13 @@ export function initSessionReplay(): void {
   state.replaySequence = 0
   state.replayStartedAt = 0
 
-  state.replayStop = record({
+  const stopHandler = record({
     emit(event) {
       enqueueReplayEvent(event)
     },
     maskAllInputs: options.maskAllInputs
   })
+  state.replayStop = stopHandler || null
 
   addCleanup(() => {
     stopSessionReplay()
