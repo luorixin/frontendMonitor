@@ -24,6 +24,7 @@
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
     <spring-boot.version>3.3.5</spring-boot.version>
+    <flyway.version>10.10.0</flyway.version>
     <jjwt.version>0.12.6</jjwt.version>
     <mybatis-spring-boot.version>3.0.4</mybatis-spring-boot.version>
     <pagehelper.version>2.1.1</pagehelper.version>
@@ -102,6 +103,18 @@
         <groupId>com.google.javascript</groupId>
         <artifactId>closure-compiler</artifactId>
         <version>${closure.compiler.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-core</artifactId>
+        <version>${flyway.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-mysql</artifactId>
+        <version>${flyway.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

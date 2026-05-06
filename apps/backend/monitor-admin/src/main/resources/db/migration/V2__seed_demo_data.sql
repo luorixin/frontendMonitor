@@ -1,5 +1,5 @@
 INSERT INTO sys_user (id, username, email, password, nickname, status)
-VALUES (1, 'admin', 'admin@example.com', '$2a$10$dyQXiE5/8ReGrdMDJp3d/O4h9F/BmEy5WK.3W/FdcwTIjVoMYKS4C', '管理员', 1);
+VALUES (1, 'admin', 'admin@example.com', '$2a$10$7SeuBPbhhycSCYg.Zm.ZHuypog7CfvZXNvQo701yZxmxuDAi2ln9u', '管理员', 1);
 
 INSERT INTO monitor_project (
   id,
