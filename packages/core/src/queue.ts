@@ -106,9 +106,12 @@ async function flushQueueInternal(options?: {
   }
 
   const result = await sendPayload(state.options.dsn, processedPayload, {
+    compressionAlgorithm: state.options.compression.algorithm,
+    compression: state.options.compression.eventPayloads,
     maxPayloadBytes: state.options.maxPayloadBytes,
     preferBeacon: options?.preferBeacon,
-    timeout: state.options.timeout
+    timeout: state.options.timeout,
+    transport: state.options.transport
   })
 
   runAfterSendHooks(result, processedPayload)

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   beforeSend,
+  beforePushEvent,
   addBreadcrumb,
   captureError,
   clearContext,
@@ -21,6 +22,24 @@ import {
   setUser,
   track
 } from "./index"
+import {
+  FakeCompressionStream,
+  FakeImage,
+  FakeIntersectionObserver,
+  FakePerformanceObserver,
+  FakeXMLHttpRequest,
+  imageRequests,
+  intersectionObservers,
+  performanceObservers,
+  readBodyAsText,
+  replayBodies,
+  replayRequestHeaders,
+  setActiveSentPayloads,
+  type SentPayload,
+  xhrRequestHeaders,
+  xhrPayloadBodies
+} from "./test-utils/browserFakes"
+
 const { rrwebRecordMock } = vi.hoisted(() => ({
   rrwebRecordMock: vi.fn()
 }))
@@ -29,181 +48,7 @@ vi.mock("rrweb", () => ({
   record: rrwebRecordMock
 }))
 
-type SentPayload = {
-  base: Record<string, unknown>
-  events: Array<Record<string, unknown>>
-}
-
-let activeSentPayloads: SentPayload[] = []
-const imageRequests: string[] = []
-const replayBodies: Array<Record<string, unknown>> = []
-const xhrPayloadBodies: string[] = []
 let rrwebEmit: ((event: unknown) => void) | null = null
-
-class FakeXMLHttpRequest extends EventTarget {
-  method = "GET"
-  onerror: ((this: XMLHttpRequest, event: Event) => void) | null = null
-  onloadend: ((this: XMLHttpRequest, event: Event) => void) | null = null
-  requestBody?: Document | XMLHttpRequestBodyInit | null
-  requestHeaders: Record<string, string> = {}
-  status = 0
-  url = ""
-
-  open(method: string, url: string | URL): void {
-    this.method = method
-    this.url = String(url)
-  }
-
-  setRequestHeader(name: string, value: string): void {
-    this.requestHeaders[name.toLowerCase()] = value
-  }
-
-  send(body?: Document | XMLHttpRequestBodyInit | null): void {
-    this.requestBody = body
-
-    if (this.url === "http://localhost:4318/collect") {
-      if (typeof body === "string") {
-        activeSentPayloads.push(JSON.parse(body))
-        xhrPayloadBodies.push(body)
-      }
-
-      this.status = 200
-      this.emitTerminalEvent("loadend")
-      return
-    }
-
-    if (this.url === "http://localhost:4318/replays") {
-      if (typeof body === "string") {
-        replayBodies.push(JSON.parse(body))
-      }
-
-      this.status = 200
-      this.emitTerminalEvent("loadend")
-      return
-    }
-
-    if (this.url.includes("xhr-network-error")) {
-      this.status = 0
-      this.emitTerminalEvent("error")
-      this.emitTerminalEvent("loadend")
-      return
-    }
-
-    if (this.url.includes("xhr-bad-request")) {
-      this.status = 404
-      this.emitTerminalEvent("loadend")
-      return
-    }
-
-    this.status = 200
-    this.emitTerminalEvent("loadend")
-  }
-
-  private emitTerminalEvent(type: "error" | "loadend"): void {
-    const event = new Event(type)
-    if (type === "error") {
-      this.onerror?.call(this as unknown as XMLHttpRequest, event)
-    }
-
-    if (type === "loadend") {
-      this.onloadend?.call(this as unknown as XMLHttpRequest, event)
-    }
-
-    this.dispatchEvent(event)
-  }
-}
-
-class FakeImage {
-  onerror: ((event: Event | string) => void) | null = null
-  onload: ((event: Event | string) => void) | null = null
-
-  set src(value: string) {
-    imageRequests.push(value)
-
-    if (value.includes("image-fail")) {
-      this.onerror?.(new Event("error"))
-      return
-    }
-
-    const url = new URL(value)
-    const raw = url.searchParams.get("data")
-    if (raw) {
-      activeSentPayloads.push(JSON.parse(raw))
-    }
-
-    this.onload?.(new Event("load"))
-  }
-}
-
-const intersectionObservers: FakeIntersectionObserver[] = []
-const performanceObservers: FakePerformanceObserver[] = []
-
-class FakeIntersectionObserver {
-  disconnect = vi.fn(() => undefined)
-  observe = vi.fn((_target: Element) => undefined)
-  unobserve = vi.fn((_target: Element) => undefined)
-
-  constructor(
-    private readonly callback: IntersectionObserverCallback,
-    readonly options?: IntersectionObserverInit
-  ) {
-    intersectionObservers.push(this)
-  }
-
-  trigger(
-    target: Element,
-    init: Partial<IntersectionObserverEntry> = {}
-  ): void {
-    this.callback(
-      [
-        {
-          boundingClientRect: {} as DOMRectReadOnly,
-          intersectionRatio: 0,
-          intersectionRect: {} as DOMRectReadOnly,
-          isIntersecting: false,
-          rootBounds: null,
-          target,
-          time: Date.now(),
-          ...init
-        }
-      ] as IntersectionObserverEntry[],
-      this as unknown as IntersectionObserver
-    )
-  }
-}
-
-class FakePerformanceObserver {
-  static supportedEntryTypes = [
-    "resource",
-    "largest-contentful-paint",
-    "layout-shift",
-    "event"
-  ]
-
-  disconnect = vi.fn(() => undefined)
-  observedType?: string
-
-  constructor(
-    private readonly callback: PerformanceObserverCallback
-  ) {
-    performanceObservers.push(this)
-  }
-
-  observe(options: PerformanceObserverInit): void {
-    this.observedType = options.type ?? options.entryTypes?.[0]
-  }
-
-  trigger(entries: PerformanceEntry[]): void {
-    this.callback(
-      {
-        getEntries: () => entries,
-        getEntriesByName: () => entries,
-        getEntriesByType: () => entries
-      } as PerformanceObserverEntryList,
-      this as unknown as PerformanceObserver
-    )
-  }
-}
 
 describe("frontend-monitor-core", () => {
   let sentPayloads: SentPayload[]
@@ -216,26 +61,56 @@ describe("frontend-monitor-core", () => {
     vi.useFakeTimers()
 
     sentPayloads = []
-    activeSentPayloads = sentPayloads
+    setActiveSentPayloads(sentPayloads)
     imageRequests.splice(0, imageRequests.length)
     xhrPayloadBodies.splice(0, xhrPayloadBodies.length)
+    xhrRequestHeaders.splice(0, xhrRequestHeaders.length)
     replayBodies.splice(0, replayBodies.length)
+    replayRequestHeaders.splice(0, replayRequestHeaders.length)
     window.localStorage.clear()
     sendBeaconSpy = vi.fn(() => false)
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
 
       if (url === "http://localhost:4318/collect") {
-        if (init?.body && typeof init.body === "string") {
-          sentPayloads.push(JSON.parse(init.body))
+        if (init?.body) {
+          const rawBody = await readBodyAsText(init.body)
+          if (rawBody) {
+            sentPayloads.push(JSON.parse(rawBody))
+          }
         }
 
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
       }
 
       if (url === "http://localhost:4318/replays") {
-        if (init?.body && typeof init.body === "string") {
-          replayBodies.push(JSON.parse(init.body))
+        if (init?.body) {
+          const rawBody = await readBodyAsText(init.body)
+          if (rawBody) {
+            replayBodies.push(JSON.parse(rawBody))
+          }
+        }
+
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+
+      if (url === "http://localhost:4318/replays-gzip-unsupported") {
+        const headers = new Headers(init?.headers)
+        if (headers.get("content-encoding") === "gzip") {
+          return new Response(
+            JSON.stringify({
+              message: "common.errors.malformedRequest",
+              success: false
+            }),
+            { status: 400 }
+          )
+        }
+
+        if (init?.body) {
+          const rawBody = await readBodyAsText(init.body)
+          if (rawBody) {
+            replayBodies.push(JSON.parse(rawBody))
+          }
         }
 
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -270,6 +145,7 @@ describe("frontend-monitor-core", () => {
       "PerformanceObserver",
       FakePerformanceObserver as unknown as typeof PerformanceObserver
     )
+    vi.stubGlobal("CompressionStream", undefined)
     vi.stubGlobal("Image", FakeImage as unknown as typeof Image)
     window.fetch = fetchMock as typeof window.fetch
     window.XMLHttpRequest =
@@ -278,6 +154,10 @@ describe("frontend-monitor-core", () => {
       FakeIntersectionObserver as unknown as typeof IntersectionObserver
     window.PerformanceObserver =
       FakePerformanceObserver as unknown as typeof PerformanceObserver
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: undefined
+    })
     window.Image = FakeImage as unknown as typeof Image
     intersectionObservers.splice(0, intersectionObservers.length)
     performanceObservers.splice(0, performanceObservers.length)
@@ -628,6 +508,80 @@ describe("frontend-monitor-core", () => {
     )
     await flush()
 
+    expect(xhrPayloadBodies).toHaveLength(1)
+    expect(sentPayloads).toHaveLength(1)
+    expect(xhrRequestHeaders[0]?.["content-encoding"]).toBeUndefined()
+  })
+
+  it("compresses xhr payloads when CompressionStream is available", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      FakeCompressionStream as unknown as typeof CompressionStream
+    )
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: FakeCompressionStream
+    })
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      compression: {
+        algorithm: "gzip",
+        eventPayloads: true
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    track("compressed-xhr", { blob: "x".repeat(5000) }, true)
+    await flush()
+
+    expect(xhrRequestHeaders).toHaveLength(1)
+    expect(xhrRequestHeaders[0]?.["content-encoding"]).toBe("gzip")
+  })
+
+  it("retries xhr payloads without compression when the server rejects gzip", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      FakeCompressionStream as unknown as typeof CompressionStream
+    )
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: FakeCompressionStream
+    })
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      compression: {
+        algorithm: "gzip",
+        eventPayloads: true
+      },
+      dsn: "http://localhost:4318/collect-gzip-unsupported"
+    })
+
+    track("fallback-xhr", { blob: "x".repeat(5000) }, true)
+    await flush()
+
+    expect(xhrRequestHeaders).toHaveLength(2)
+    expect(xhrRequestHeaders[0]?.["content-encoding"]).toBe("gzip")
+    expect(xhrRequestHeaders[1]?.["content-encoding"]).toBeUndefined()
     expect(xhrPayloadBodies).toHaveLength(1)
     expect(sentPayloads).toHaveLength(1)
   })
@@ -1260,6 +1214,424 @@ describe("frontend-monitor-core", () => {
       expect.arrayContaining([
         expect.objectContaining({ metricName: "LCP", rating: "good", value: 2400 })
       ])
+    )
+  })
+
+  it("destroy removes visibilitychange exit listener", async () => {
+    sendBeaconSpy.mockImplementation(() => true)
+
+    init({
+      appName: "demo",
+      batchSize: 5,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      flushInterval: 1000
+    })
+
+    track("visibility-destroy")
+    destroy()
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden"
+    })
+    window.dispatchEvent(new Event("visibilitychange"))
+    await Promise.resolve()
+
+    expect(sendBeaconSpy).not.toHaveBeenCalled()
+    expect(sentPayloads).toHaveLength(0)
+  })
+
+  it("uses package version in payload base", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    track("version-check", undefined, true)
+    await flush()
+
+    expect(sentPayloads[0]?.base.sdkVersion).toBe("2.1.0")
+  })
+
+  it("keeps failed replay chunks and retries them on manual flush", async () => {
+    fetchMock.mockImplementationOnce(async () => {
+      throw new Error("replay unavailable")
+    })
+
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        flushInterval: 100,
+        maxEvents: 2,
+        sampleRate: 1
+      }
+    })
+
+    rrwebEmit?.({ type: 3, timestamp: 1000, data: { source: 1 } })
+
+    await expect(flushSessionReplay()).resolves.toBeUndefined()
+    expect(replayBodies).toHaveLength(0)
+
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+    expect(replayBodies[0]?.events).toHaveLength(1)
+  })
+
+  it("compresses replay fetch payloads when CompressionStream is available", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      FakeCompressionStream as unknown as typeof CompressionStream
+    )
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: FakeCompressionStream
+    })
+
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        flushInterval: 100,
+        maxEvents: 2,
+        sampleRate: 1
+      }
+    })
+
+    rrwebEmit?.({ type: 3, timestamp: 1000, data: { source: 1 } })
+    await flushSessionReplay()
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => String(input) === "http://localhost:4318/replays"
+      )
+    ).toBe(true)
+    const replayHeaders = new Headers(
+      (fetchMock.mock.calls.at(-1)?.[1] as RequestInit | undefined)?.headers
+    )
+    expect(replayHeaders.get("content-encoding")).toBe("gzip")
+  })
+
+  it("retries replay payloads without compression when the server rejects gzip", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      FakeCompressionStream as unknown as typeof CompressionStream
+    )
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: FakeCompressionStream
+    })
+
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays-gzip-unsupported",
+        flushInterval: 100,
+        maxEvents: 2,
+        sampleRate: 1
+      }
+    })
+
+    rrwebEmit?.({ type: 3, timestamp: 1000, data: { source: 1 } })
+    await flushSessionReplay()
+
+    const replayCalls = fetchMock.mock.calls.filter(
+      ([input]) => String(input) === "http://localhost:4318/replays-gzip-unsupported"
+    )
+
+    expect(replayCalls).toHaveLength(2)
+    expect(new Headers(replayCalls[0]?.[1]?.headers).get("content-encoding")).toBe(
+      "gzip"
+    )
+    expect(new Headers(replayCalls[1]?.[1]?.headers).get("content-encoding")).toBeNull()
+    expect(replayBodies).toHaveLength(1)
+  })
+
+  it("allows disabling replay compression explicitly", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      FakeCompressionStream as unknown as typeof CompressionStream
+    )
+    Object.defineProperty(window, "CompressionStream", {
+      configurable: true,
+      value: FakeCompressionStream
+    })
+
+    init({
+      appName: "demo",
+      compression: {
+        sessionReplay: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        flushInterval: 100,
+        maxEvents: 2,
+        sampleRate: 1
+      }
+    })
+
+    rrwebEmit?.({ type: 3, timestamp: 1000, data: { source: 1 } })
+    await flushSessionReplay()
+
+    const replayHeaders = new Headers(
+      (fetchMock.mock.calls.at(-1)?.[1] as RequestInit | undefined)?.headers
+    )
+    expect(replayHeaders.get("content-encoding")).toBeNull()
+  })
+
+  it("defaults compression algorithm to gzip", () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect"
+    })
+
+    expect(getOptions()?.compression.algorithm).toBe("gzip")
+  })
+
+  it("passes event arrays through all beforePushEvent hooks", async () => {
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    beforePushEvent(event => [
+      event,
+      {
+        ...event,
+        eventName: "derived",
+        type: "custom"
+      }
+    ])
+    beforePushEvent(event => {
+      if (event.type === "custom" && event.eventName === "derived") {
+        return [
+          {
+            ...event,
+            eventName: "derived-a"
+          },
+          false
+        ] as any
+      }
+
+      return event
+    })
+
+    track("source", undefined, true)
+    await flush()
+
+    expect(sentPayloads[0]?.events.map(event => event.eventName)).toEqual([
+      "source",
+      "derived-a"
+    ])
+  })
+
+  it("supports custom sanitize keys patterns and disabling automatic sanitization", async () => {
+    let sanitizedPayload: SentPayload | null = null
+    let rawPayload: SentPayload | null = null
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sanitize: {
+        redactValue: "[MASKED]",
+        sensitiveKeys: ["secretCode"],
+        textPatterns: [/order_[0-9]+/g]
+      }
+    })
+
+    beforeSend(payload => {
+      sanitizedPayload = payload as unknown as SentPayload
+      return payload
+    })
+
+    track(
+      "custom-sanitize",
+      {
+        note: "order_123 belongs to 13800138000",
+        secretCode: "abc"
+      },
+      true
+    )
+    await flush()
+
+    expect(sanitizedPayload?.events[0]?.params).toMatchObject({
+      note: "[MASKED] belongs to 138****8000",
+      secretCode: "[MASKED]"
+    })
+
+    destroy()
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sanitize: {
+        enabled: false
+      }
+    })
+
+    beforeSend(payload => {
+      rawPayload = payload as unknown as SentPayload
+      return payload
+    })
+
+    track("raw-sanitize", { token: "secret-token" }, true)
+    await flush()
+
+    expect(rawPayload?.events[0]?.params).toMatchObject({
+      token: "secret-token"
+    })
+  })
+
+  it("uses a custom transport and persists failed custom transport payloads offline", async () => {
+    const customSend = vi.fn(async () => ({
+      reason: "network_error" as const,
+      success: false,
+      transport: "xhr" as const
+    }))
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      offlineQueueKey: "__test_custom_transport_offline__",
+      transport: {
+        send: customSend
+      }
+    })
+
+    track("custom-transport", undefined, true)
+    await flush()
+
+    expect(customSend).toHaveBeenCalledTimes(1)
+    expect(sentPayloads).toHaveLength(0)
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("__test_custom_transport_offline__") ?? "[]"
+      )
+    ).toHaveLength(1)
+  })
+
+  it("does not propagate trace headers by default and does when enabled", async () => {
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        requestPerformance: false,
+        routeChange: false,
+        xhrError: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    await window.fetch("http://localhost:3000/default-trace")
+    expect((fetchMock.mock.calls.at(-1)?.[1] as RequestInit | undefined)?.headers)
+      .toBeUndefined()
+
+    destroy()
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        requestPerformance: false,
+        routeChange: false,
+        xhrError: true
+      },
+      dsn: "http://localhost:4318/collect",
+      trace: {
+        enabled: true,
+        propagateTraceparent: true,
+        sampleRate: 1
+      }
+    })
+
+    track("trace-base", undefined, true)
+    await flush()
+
+    await window.fetch("http://localhost:3000/traced-fetch")
+    const tracedFetchInit = fetchMock.mock.calls.at(-1)?.[1] as
+      | RequestInit
+      | undefined
+    const traceparent = new Headers(tracedFetchInit?.headers).get("traceparent")
+    expect(traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/)
+    expect(sentPayloads.at(-1)?.base.traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(sentPayloads.at(-1)?.base.spanId).toMatch(/^[0-9a-f]{16}$/)
+
+    const xhr = new XMLHttpRequest() as FakeXMLHttpRequest
+    xhr.open("GET", "http://localhost:3000/traced-xhr")
+    xhr.send()
+
+    expect(xhr.requestHeaders.traceparent).toMatch(
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/
     )
   })
 

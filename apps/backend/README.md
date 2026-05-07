@@ -108,6 +108,7 @@ monitor-admin -> monitor-framework -> monitor-system -> monitor-common
 
 - 通过 `projectKey` 识别监控项目
 - 项目停用或不存在时拒绝采集
+- `POST /collect` 与 `POST /replays` 支持 `Content-Encoding: gzip`，会在进入 controller 前透明解压
 - 原始事件同步落库
 - 按指纹更新 `monitor_issue`
 - 同步更新小时 / 天聚合表

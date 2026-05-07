@@ -4,6 +4,7 @@ import { enqueueEvent } from "../queue"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../types"
+import { getTraceparent } from "../trace"
 
 type XHRMeta = {
   method: string
@@ -17,7 +18,11 @@ type InstrumentedXHR = XMLHttpRequest & {
 }
 
 export function initXHRCapture(): void {
-  if (!state.options?.capture.xhrError && !state.options?.capture.requestPerformance) return
+  if (
+    !state.options?.capture.xhrError &&
+    !state.options?.capture.requestPerformance &&
+    !state.options?.trace.propagateTraceparent
+  ) return
   if (typeof XMLHttpRequest === "undefined") return
   if (state.originalXHROpen || state.originalXHRSend) return
 
@@ -35,7 +40,7 @@ export function initXHRCapture(): void {
       url: String(url)
     }
 
-    state.originalXHROpen!.call(this, method, url, ...(args as []))
+    state.originalXHROpen!.call(this, method, url, ...args)
   }
 
   XMLHttpRequest.prototype.send = function (...args: unknown[]): void {
@@ -114,6 +119,11 @@ export function initXHRCapture(): void {
     xhr.addEventListener("timeout", onTimeout)
     xhr.addEventListener("abort", onAbort)
     xhr.addEventListener("loadend", onLoadEnd)
+
+    const traceparent = getTraceparent()
+    if (traceparent) {
+      xhr.setRequestHeader("traceparent", traceparent)
+    }
 
     state.originalXHRSend!.call(this, ...(args as []))
   }

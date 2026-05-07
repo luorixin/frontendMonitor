@@ -2,6 +2,12 @@ import { buildPayload } from "./base"
 import { state, clearTimer } from "./context"
 import { runAfterSendHooks } from "./hooks"
 import { debugLog } from "./queue"
+import {
+  appendStorageQueue,
+  clearStorageQueue,
+  readStorageQueue,
+  writeStorageQueue
+} from "./storageQueue"
 import { sendPayload } from "./transport"
 import type { MonitorEvent, MonitorPayload } from "./types"
 
@@ -23,11 +29,15 @@ export function persistOfflinePayload(payload: MonitorPayload): boolean {
     return false
   }
 
-  const entries = readOfflineEntries()
-  entries.push({ attempts: 0, payload })
-  const maxEntries = state.options.maxOfflinePayloads
-  const trimmed = maxEntries > 0 ? entries.slice(-maxEntries) : []
-  return writeOfflineEntries(trimmed)
+  return appendStorageQueue(
+    { attempts: 0, payload },
+    {
+      key: state.options.offlineQueueKey,
+      maxEntries: state.options.maxOfflinePayloads,
+      onWriteError: error => debugLog("persist offline payload failed", error),
+      validate: isOfflineEntry
+    }
+  )
 }
 
 export function scheduleOfflineReplay(delay?: number): void {
@@ -50,8 +60,11 @@ export async function replayOfflinePayloads(): Promise<void> {
 
   for (const entry of entries) {
     const result = await sendPayload(state.options.dsn, entry.payload, {
+      compressionAlgorithm: state.options.compression.algorithm,
+      compression: state.options.compression.eventPayloads,
       maxPayloadBytes: state.options.maxPayloadBytes,
-      timeout: state.options.timeout
+      timeout: state.options.timeout,
+      transport: state.options.transport
     })
 
     runAfterSendHooks(result, entry.payload)
@@ -74,48 +87,35 @@ export async function replayOfflinePayloads(): Promise<void> {
 }
 
 export function clearOfflinePayloads(): void {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return
-  storage.removeItem(state.options.offlineQueueKey)
+  if (!state.options) return
+  clearStorageQueue(state.options.offlineQueueKey)
 }
 
 function readOfflineEntries(): OfflineEntry[] {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return []
-
-  const raw = storage.getItem(state.options.offlineQueueKey)
-  if (!raw) return []
-
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as OfflineEntry[]) : []
-  } catch {
-    return []
-  }
+  if (!state.options) return []
+  return readStorageQueue({
+    key: state.options.offlineQueueKey,
+    validate: isOfflineEntry
+  })
 }
 
 function writeOfflineEntries(entries: OfflineEntry[]): boolean {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return false
-
-  try {
-    if (entries.length === 0) {
-      storage.removeItem(state.options.offlineQueueKey)
-      return true
-    }
-
-    storage.setItem(state.options.offlineQueueKey, JSON.stringify(entries))
-    return true
-  } catch (error) {
-    debugLog("persist offline payload failed", error)
-    return false
-  }
+  if (!state.options) return false
+  return writeStorageQueue(entries, {
+    key: state.options.offlineQueueKey,
+    onWriteError: error => debugLog("persist offline payload failed", error),
+    validate: isOfflineEntry
+  })
 }
 
-function getLocalStorage(): Storage | null {
-  try {
-    return window.localStorage
-  } catch {
-    return null
-  }
+function isOfflineEntry(value: unknown): value is OfflineEntry {
+  if (typeof value !== "object" || value === null) return false
+  const entry = value as { attempts?: unknown; payload?: unknown }
+  return (
+    typeof entry.attempts === "number" &&
+    typeof entry.payload === "object" &&
+    entry.payload !== null &&
+    "base" in entry.payload &&
+    "events" in entry.payload
+  )
 }

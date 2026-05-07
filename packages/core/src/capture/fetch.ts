@@ -4,9 +4,14 @@ import { recordBreadcrumb } from "../breadcrumb"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../types"
+import { getTraceparent } from "../trace"
 
 export function initFetchCapture(): void {
-  if (!state.options?.capture.fetchError && !state.options?.capture.requestPerformance) return
+  if (
+    !state.options?.capture.fetchError &&
+    !state.options?.capture.requestPerformance &&
+    !state.options?.trace.propagateTraceparent
+  ) return
   if (state.originalFetch) return
 
   const originalFetch = window.fetch
@@ -16,17 +21,22 @@ export function initFetchCapture(): void {
     input: RequestInfo | URL,
     init?: RequestInit
   ): Promise<Response> => {
-    const requestUrl = resolveRequestUrl(input)
+      const requestUrl = resolveRequestUrl(input)
+      const tracedRequest = applyTraceparent(input, init)
 
-    if (matchesIgnoreRule(requestUrl, state.options?.ignoreUrls ?? [])) {
-      return originalFetch.call(window, input, init)
-    }
+      if (matchesIgnoreRule(requestUrl, state.options?.ignoreUrls ?? [])) {
+        return originalFetch.call(window, tracedRequest.input, tracedRequest.init)
+      }
 
     const method = resolveMethod(input, init)
     const start = now()
 
     try {
-      const response = await originalFetch.call(window, input, init)
+      const response = await originalFetch.call(
+        window,
+        tracedRequest.input,
+        tracedRequest.init
+      )
       const duration = now() - start
 
       if (response.ok) {
@@ -132,4 +142,38 @@ function resolveRequestUrl(input: RequestInfo | URL): string {
   }
 
   return String(input)
+}
+
+function applyTraceparent(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): {
+  input: RequestInfo | URL
+  init?: RequestInit
+} {
+  const traceparent = getTraceparent()
+  if (!traceparent) return { input, init }
+
+  const headers = new Headers(
+    init?.headers ??
+      (typeof Request !== "undefined" && input instanceof Request
+        ? input.headers
+        : undefined)
+  )
+  headers.set("traceparent", traceparent)
+
+  if (typeof Request !== "undefined" && input instanceof Request && !init) {
+    return {
+      input: new Request(input, { headers }),
+      init: undefined
+    }
+  }
+
+  return {
+    input,
+    init: {
+      ...(init ?? {}),
+      headers
+    }
+  }
 }

@@ -16,19 +16,22 @@ export function initPageExitCapture(): void {
     void flushReplayQueue(true)
   }
 
-  window.addEventListener("pagehide", onPageHide)
-  window.addEventListener("beforeunload", onBeforeUnload)
-  window.addEventListener("visibilitychange", () => {
+  const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") {
       enqueueDwellEvent()
       void flushQueueOnExit()
       void flushReplayQueue(true)
     }
-  })
+  }
+
+  window.addEventListener("pagehide", onPageHide)
+  window.addEventListener("beforeunload", onBeforeUnload)
+  window.addEventListener("visibilitychange", onVisibilityChange)
 
   addCleanup(() => {
     window.removeEventListener("pagehide", onPageHide)
     window.removeEventListener("beforeunload", onBeforeUnload)
+    window.removeEventListener("visibilitychange", onVisibilityChange)
   })
 }
 

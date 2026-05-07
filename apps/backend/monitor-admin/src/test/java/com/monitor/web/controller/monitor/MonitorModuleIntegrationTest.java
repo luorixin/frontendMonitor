@@ -11,6 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monitor.framework.security.service.TokenService;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPOutputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +115,29 @@ class MonitorModuleIntegrationTest {
             .with(user("admin")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.total", greaterThanOrEqualTo(2)));
+  }
+
+  @Test
+  void shouldCollectEventsFromGzipPost() throws Exception {
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/demo-gzip", "Demo Gzip", "device-gzip", "session-gzip", "page-gzip"),
+        "events", List.of(
+            Map.of(
+                "type", "custom",
+                "eventName", "gzip_collect",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/demo-gzip"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Content-Encoding", "gzip")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(gzip(objectMapper.writeValueAsString(payload))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.received").value(1));
   }
 
   @Test
@@ -304,6 +330,36 @@ class MonitorModuleIntegrationTest {
             .with(user("admin")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.rows[0].replayId").value(replayId));
+  }
+
+  @Test
+  void shouldCollectReplayChunksFromGzipPost() throws Exception {
+    Map<String, Object> replayPayload = new LinkedHashMap<>();
+    replayPayload.put("appName", "frontend-monitor-demo");
+    replayPayload.put("appVersion", "0.1.0");
+    replayPayload.put("deviceId", "device-rgzip");
+    replayPayload.put("sessionId", "session-rgzip");
+    replayPayload.put("pageId", "page-rgzip");
+    replayPayload.put("replayId", "replay-gzip-001");
+    replayPayload.put("url", "http://localhost:4173/replay-gzip");
+    replayPayload.put("title", "Replay Gzip");
+    replayPayload.put("sdkVersion", "0.2.0");
+    replayPayload.put("sequence", 0);
+    replayPayload.put("startedAt", System.currentTimeMillis() - 1000);
+    replayPayload.put("endedAt", System.currentTimeMillis());
+    replayPayload.put(
+        "events",
+        List.of(Map.of("type", 4, "timestamp", System.currentTimeMillis(), "data", Map.of("href", "http://localhost:4173/replay-gzip")))
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/replays/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .header("Content-Encoding", "gzip")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(gzip(objectMapper.writeValueAsString(replayPayload))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.received").value(1));
   }
 
   @Test
@@ -718,5 +774,13 @@ class MonitorModuleIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.total", greaterThanOrEqualTo(1)))
         .andExpect(jsonPath("$.rows[0].ruleId").value(ruleId));
+  }
+
+  private byte[] gzip(String body) throws Exception {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    try (GZIPOutputStream gzip = new GZIPOutputStream(output)) {
+      gzip.write(body.getBytes(StandardCharsets.UTF_8));
+    }
+    return output.toByteArray();
   }
 }

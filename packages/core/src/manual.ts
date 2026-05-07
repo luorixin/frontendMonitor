@@ -1,5 +1,6 @@
 import { state } from "./context"
 import { recordBreadcrumb } from "./breadcrumb"
+import { registerIntegration } from "./integrations"
 import {
   registerAfterSend,
   registerBeforePushEvent,
@@ -17,6 +18,7 @@ import type {
   Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
+  MonitorIntegration,
   MonitorOptions,
   ResolvedMonitorOptions
 } from "./types"
@@ -125,6 +127,10 @@ export function sendLocal(): Promise<void> {
   return sendLocalizedPayloads()
 }
 
+export function addIntegration(integration: MonitorIntegration): void {
+  registerIntegration(integration)
+}
+
 export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
   if (!state.options) return null
 
@@ -133,7 +139,8 @@ export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
 	    capture: { ...state.options.capture },
 	    contexts: { ...state.options.contexts },
 	    tags: { ...state.options.tags },
-	    ignoreUrls: [...state.options.ignoreUrls]
+	    ignoreUrls: [...state.options.ignoreUrls],
+      integrations: [...state.options.integrations]
 	  }
 }
 

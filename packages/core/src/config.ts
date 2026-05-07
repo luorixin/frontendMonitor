@@ -1,8 +1,12 @@
 import type {
+  CompressionOptions,
   MonitorOptions,
   ResolvedMonitorOptions,
+  SanitizeOptions,
   SessionReplayOptions
 } from "./types"
+
+declare const __FRONTEND_MONITOR_SDK_VERSION__: string | undefined
 
 const DEFAULT_CAPTURE = {
   click: true,
@@ -29,6 +33,25 @@ const DEFAULT_SESSION_REPLAY = {
   sampleRate: 0
 } as const satisfies Required<SessionReplayOptions>
 
+const DEFAULT_SANITIZE = {
+  enabled: true,
+  redactValue: "[REDACTED]",
+  sensitiveKeys: [],
+  textPatterns: []
+} as const satisfies Required<SanitizeOptions>
+
+const DEFAULT_TRACE = {
+  enabled: false,
+  propagateTraceparent: false,
+  sampleRate: 1
+} as const
+
+const DEFAULT_COMPRESSION = {
+  algorithm: "gzip",
+  eventPayloads: false,
+  sessionReplay: true
+} as const satisfies Required<CompressionOptions>
+
 export const DEFAULT_OPTIONS: Omit<
   ResolvedMonitorOptions,
 	  "dsn" | "appName" | "appVersion" | "userId"
@@ -38,6 +61,7 @@ export const DEFAULT_OPTIONS: Omit<
   beforePushEvent: undefined,
   beforeSend: undefined,
   capture: { ...DEFAULT_CAPTURE },
+  compression: { ...DEFAULT_COMPRESSION },
   debug: false,
   flushInterval: 5000,
   ignoreUrls: [],
@@ -58,11 +82,18 @@ export const DEFAULT_OPTIONS: Omit<
 	  environment: undefined,
 	  release: undefined,
 	  sessionReplay: { ...DEFAULT_SESSION_REPLAY },
-	  tags: {},
-	  timeout: 5000
+  sanitize: { ...DEFAULT_SANITIZE },
+  tags: {},
+  trace: { ...DEFAULT_TRACE },
+  transport: undefined,
+  integrations: [],
+  timeout: 5000
 	}
 
-export const SDK_VERSION = "0.1.0"
+export const SDK_VERSION =
+  typeof __FRONTEND_MONITOR_SDK_VERSION__ === "string"
+    ? __FRONTEND_MONITOR_SDK_VERSION__
+    : "0.0.0"
 
 export function normalizeOptions(
   options: MonitorOptions
@@ -87,6 +118,9 @@ export function normalizeOptions(
 	    options.maxPayloadBytes ?? DEFAULT_OPTIONS.maxPayloadBytes
 	  )
   const sessionReplay = normalizeSessionReplayOptions(options)
+  const sanitize = normalizeSanitizeOptions(options)
+  const trace = normalizeTraceOptions(options)
+  const compression = normalizeCompressionOptions(options)
 
 	  return {
 	    afterSend: options.afterSend ?? DEFAULT_OPTIONS.afterSend,
@@ -96,6 +130,7 @@ export function normalizeOptions(
     beforePushEvent: options.beforePushEvent ?? DEFAULT_OPTIONS.beforePushEvent,
     beforeSend: options.beforeSend ?? DEFAULT_OPTIONS.beforeSend,
     capture,
+    compression,
     debug: options.debug ?? DEFAULT_OPTIONS.debug,
     dsn: options.dsn,
     flushInterval: Math.max(
@@ -133,8 +168,12 @@ export function normalizeOptions(
 	    ),
 	    sampleRate,
 	    sessionReplay,
+	    sanitize,
 	    scopeError: options.scopeError ?? DEFAULT_OPTIONS.scopeError,
 	    tags: { ...(options.tags ?? DEFAULT_OPTIONS.tags) },
+	    trace,
+	    transport: options.transport ?? DEFAULT_OPTIONS.transport,
+	    integrations: [...(options.integrations ?? DEFAULT_OPTIONS.integrations)],
 	    timeout,
 	    userId: options.userId
 	  }
@@ -174,4 +213,46 @@ function deriveReplayEndpoint(dsn: string): string {
 function clampSampleRate(value: number): number {
   if (Number.isNaN(value)) return 1
   return Math.min(1, Math.max(0, value))
+}
+
+function normalizeSanitizeOptions(
+  options: MonitorOptions
+): ResolvedMonitorOptions["sanitize"] {
+  return {
+    enabled: options.sanitize?.enabled ?? DEFAULT_SANITIZE.enabled,
+    redactValue: options.sanitize?.redactValue ?? DEFAULT_SANITIZE.redactValue,
+    sensitiveKeys: [...(options.sanitize?.sensitiveKeys ?? [])],
+    textPatterns: [...(options.sanitize?.textPatterns ?? [])]
+  }
+}
+
+function normalizeTraceOptions(
+  options: MonitorOptions
+): ResolvedMonitorOptions["trace"] {
+  return {
+    enabled: options.trace?.enabled ?? DEFAULT_TRACE.enabled,
+    propagateTraceparent:
+      options.trace?.propagateTraceparent ?? DEFAULT_TRACE.propagateTraceparent,
+    sampleRate: clampSampleRate(options.trace?.sampleRate ?? DEFAULT_TRACE.sampleRate)
+  }
+}
+
+function normalizeCompressionOptions(
+  options: MonitorOptions
+): ResolvedMonitorOptions["compression"] {
+  if (typeof options.compression === "boolean") {
+    return {
+      algorithm: DEFAULT_COMPRESSION.algorithm,
+      eventPayloads: options.compression,
+      sessionReplay: options.compression
+    }
+  }
+
+  return {
+    algorithm: options.compression?.algorithm ?? DEFAULT_COMPRESSION.algorithm,
+    eventPayloads:
+      options.compression?.eventPayloads ?? DEFAULT_COMPRESSION.eventPayloads,
+    sessionReplay:
+      options.compression?.sessionReplay ?? DEFAULT_COMPRESSION.sessionReplay
+  }
 }

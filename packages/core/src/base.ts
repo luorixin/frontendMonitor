@@ -26,6 +26,8 @@ export function buildBasePayload(): BasePayload {
     tags: Object.keys(state.tags).length > 0 ? { ...state.tags } : undefined,
     timestamp: now(),
     title: document.title,
+    traceId: state.traceId ?? undefined,
+    spanId: state.spanId ?? undefined,
     url: window.location.href,
     userAgent: window.navigator.userAgent,
     userId: options.userId,

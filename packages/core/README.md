@@ -32,6 +32,7 @@ captureError(new Error("manual error"))
 - `beforeSend(handler)`
 - `beforePushEvent(handler)`
 - `afterSend(handler)`
+- `addIntegration(integration)`
 - `flush()`
 - `flushSessionReplay()`
 - `getReplayId()`
@@ -41,6 +42,78 @@ captureError(new Error("manual error"))
 - `intersectionObserver()`
 - `intersectionUnobserve()`
 - `intersectionDisconnect()`
+
+## Integrations
+
+默认情况下，SDK 会自动注册内置 integrations 来维持当前行为，包括：
+
+- `ConsoleErrorIntegration`
+- `JSErrorIntegration`
+- `FetchIntegration`
+- `XHRIntegration`
+- `NavigationIntegration`
+- `PageExitIntegration`
+- `NetworkStatusIntegration`
+- `SessionReplayIntegration`
+- `PerformanceIntegration`
+- `ClickIntegration`
+
+如果你要扩展新的采集类型，可以在初始化时传入 `integrations`，或在初始化后调用 `addIntegration()`：
+
+```ts
+import {
+  addIntegration,
+  init,
+  type MonitorIntegration
+} from "frontend-monitor-core"
+
+const customIntegration: MonitorIntegration = {
+  name: "custom-visibility",
+  setup(context) {
+    const onVisible = () => {
+      context.emit(
+        {
+          eventName: "custom_visible",
+          timestamp: Date.now(),
+          type: "custom",
+          url: window.location.href
+        },
+        true
+      )
+    }
+
+    window.addEventListener("custom-visible", onVisible)
+    return () => window.removeEventListener("custom-visible", onVisible)
+  }
+}
+
+init({
+  dsn: "/api/v1/monitor/collect/demo-project-key",
+  appName: "demo",
+  integrations: [customIntegration]
+})
+
+addIntegration({
+  name: "runtime-feature",
+  setup(context) {
+    context.emit(
+      {
+        eventName: "runtime_loaded",
+        timestamp: Date.now(),
+        type: "custom",
+        url: window.location.href
+      },
+      true
+    )
+  }
+})
+```
+
+`setup(context)` 当前提供：
+
+- `context.emit(event, flush?)`：把自定义事件送入现有队列、采样、hook 和发送链路。
+- `context.addCleanup(fn)`：注册销毁清理逻辑，`destroy()` 时自动执行。
+- `context.options`：只读的当前解析后配置。
 
 ## MonitorOptions
 
@@ -78,6 +151,15 @@ captureError(new Error("manual error"))
 | `maxPayloadBytes` | `number` | `65536` | 单次 payload 最大字节数，超出后不再尝试传输。 |
 | `maxOfflinePayloads` | `number` | `50` | 自动离线重试队列最多保留的 payload 数。 |
 | `maxBreadcrumbs` | `number` | `50` | payload 中最多携带的 breadcrumb 数。 |
+| `compression` | `boolean \| CompressionOptions` | `{ algorithm: "gzip", eventPayloads: false, sessionReplay: true }` | 显式控制发送前是否尝试压缩。布尔值会同时作用于普通 payload 和 replay chunk。 |
+
+`CompressionOptions` 子字段：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `algorithm` | `"gzip"` | 当前仅支持 `gzip`。保留为显式字段，便于后续扩展 `br` 等算法而不改变配置结构。 |
+| `eventPayloads` | `false` | 是否对普通事件批量 payload 启用 gzip 压缩。默认关闭，避免对主上报链路引入额外兼容风险。 |
+| `sessionReplay` | `true` | 是否对 replay chunk 启用 gzip 压缩。默认开启，优先降低高频 rrweb 片段的体积。 |
 
 ### 采集开关
 
@@ -129,6 +211,58 @@ captureError(new Error("manual error"))
 
 SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcrumbs，随下一次 payload 上报。
 
+### 脱敏配置
+
+默认会对 token、手机号、身份证号、密码类字段和输入框内容做脱敏。可以通过 `sanitize` 追加业务规则：
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `sanitize.enabled` | `boolean` | `true` | 是否启用发送前自动脱敏。关闭后 `beforeSend` 会收到原始 payload。 |
+| `sanitize.sensitiveKeys` | `string[]` | `[]` | 追加需要整体替换的字段名，和内置敏感字段合并。 |
+| `sanitize.textPatterns` | `RegExp[]` | `[]` | 追加需要在字符串中替换的文本规则。 |
+| `sanitize.redactValue` | `string` | `[REDACTED]` | 字段整体替换和自定义文本规则的替换值。 |
+
+### 自定义传输
+
+默认发送链路仍按 `image -> sendBeacon -> xhr` 选择。需要接入自有网关、加密或签名时，可以传入 `transport.send`：
+
+```ts
+init({
+  dsn: "/api/v1/monitor/collect/demo-project-key",
+  appName: "demo",
+  transport: {
+    async send(dsn, payload, options) {
+      const response = await fetch(dsn, {
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: AbortSignal.timeout(options.timeout ?? 5000)
+      })
+
+      return {
+        status: response.status,
+        success: response.ok,
+        transport: "xhr"
+      }
+    }
+  }
+})
+```
+
+自定义传输失败时仍会进入自动离线重试队列；`maxPayloadBytes` 仍会先拦截超大 payload。
+
+如果使用内置发送链路，SDK 会按 `compression` 配置决定是否在 `xhr/fetch` 发送前尝试 `CompressionStream("gzip")`。当浏览器不支持压缩，或服务端拒绝压缩请求体时，会自动回退到原始 JSON。
+
+### Trace Context
+
+`trace` 默认关闭。开启后 SDK 会生成 `base.traceId` 和 `base.spanId`；如果同时开启 `propagateTraceparent`，会为非忽略的 `fetch/xhr` 请求注入 W3C `traceparent` header。
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `trace.enabled` | `boolean` | `false` | 是否生成 trace 上下文。 |
+| `trace.sampleRate` | `number` | `1` | trace 上下文采样率，范围会被钳制到 `0 ~ 1`。 |
+| `trace.propagateTraceparent` | `boolean` | `false` | 是否向 `fetch/xhr` 请求注入 `traceparent`。 |
+
 ### Web Vitals 发送时机
 
 - `FCP / TTFB` 会在页面加载完成后尽快发送。
@@ -161,6 +295,7 @@ SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcr
 - `captureError()` 产生的错误事件可以在后端关联回放
 - 可通过 `getReplayId()` 获取当前会话 replay 标识
 - 可通过 `flushSessionReplay()` 和 `stopReplay()` 主动控制 replay
+- replay chunk 发送失败会暂存在内存重试队列，后续 `flushSessionReplay()`、页面退出或网络恢复时会再次尝试。
 
 ### 错误聚合
 
@@ -186,16 +321,18 @@ Hook 执行顺序：
 6. 发送或本地化缓存
 7. `afterSend`
 
+如果多个 `beforePushEvent` 连续注册，前一个 hook 返回数组时，后续 hook 会逐个处理数组内事件；某个事件返回 `false` 只会丢弃当前事件，不影响同数组里的其他事件。
+
 ## 行为说明
 
 ### 1. `sampleRate` 只影响普通事件
 
 `track(..., true)` 或 `captureError(..., true)` 这种显式 `flush = true` 的调用不会经过普通采样丢弃逻辑，适合关键事件。
 
-### 2. 离线时当前实现不会自动排队
+### 2. 离线时会进入自动重试队列
 
-检测到浏览器处于 `offline` 状态时，事件会直接丢弃，不会自动缓存到内存队列。  
-如果你需要弱网或离线场景保留数据，建议配合 `localization: true` 和 `sendLocal()` 使用。
+检测到浏览器处于 `offline` 状态或发送失败时，SDK 会在 `offlineRetry = true` 时把 payload 写入 `localStorage` 重试队列，并在浏览器恢复在线后按退避策略重试。
+如果你需要完全手动控制发送时机，可以改用 `localization: true` 和 `sendLocal()`。
 
 ### 3. `ignoreUrls` 会自动包含 `dsn`
 
@@ -249,6 +386,15 @@ init({
   ignoreUrls: [/\\/health$/, "/api/internal/no-track"],
   localization: false,
   scopeError: true,
+  sanitize: {
+    sensitiveKeys: ["secretCode"],
+    textPatterns: [/order_[0-9]+/g]
+  },
+  trace: {
+    enabled: true,
+    propagateTraceparent: true,
+    sampleRate: 1
+  },
   capture: {
     performance: true,
     requestPerformance: true,

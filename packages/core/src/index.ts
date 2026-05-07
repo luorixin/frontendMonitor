@@ -1,26 +1,29 @@
 import { getCurrentRoute } from "./base"
 import { normalizeOptions } from "./config"
-import { initClickCapture } from "./capture/click"
-import { initConsoleErrorCapture } from "./capture/console-error"
-import { initErrorCapture } from "./capture/error"
 import {
   intersectionDisconnect,
   intersectionObserver,
   intersectionUnobserve,
   restoreExposureCapture
 } from "./capture/exposure"
-import { initFetchCapture, restoreFetchCapture } from "./capture/fetch"
 import { initDeviceId, resolveSessionId } from "./capture/identity"
-import { initNetworkStatusCapture } from "./capture/network-status"
-import { initPageExitCapture } from "./capture/page-exit"
-import { initPerformanceCapture } from "./capture/performance"
-import { initXHRCapture, restoreXHRCapture } from "./capture/xhr"
-import {
-  initNavigationCapture,
-  restoreNavigationCapture
-} from "./capture/navigation"
 import { clearCleanups, resetState, state } from "./context"
 import {
+  ClickIntegration,
+  ConsoleErrorIntegration,
+  FetchIntegration,
+  JSErrorIntegration,
+  NavigationIntegration,
+  NetworkStatusIntegration,
+  PageExitIntegration,
+  PerformanceIntegration,
+  registerIntegration,
+  resolveIntegrations,
+  SessionReplayIntegration,
+  XHRIntegration
+} from "./integrations"
+import {
+  addIntegration,
 	  afterSend,
 	  addBreadcrumb,
 	  beforePushEvent,
@@ -43,7 +46,7 @@ import {
   track
 } from "./manual"
 import { clearQueue } from "./queue"
-import { initSessionReplay } from "./replay"
+import { initTraceContext } from "./trace"
 import { uuid } from "./utils"
 import type { MonitorOptions } from "./types"
 
@@ -61,6 +64,8 @@ export type {
   ExposureEventPayload,
   ExposureObserverOptions,
   LocalizationOverflowHandler,
+  MonitorIntegration,
+  MonitorIntegrationContext,
   MonitorEvent,
   MonitorOptions,
   MonitorPayload,
@@ -87,40 +92,34 @@ export function init(options: MonitorOptions): void {
   state.pageStartTime = Date.now()
   state.currentRoute = getCurrentRoute()
   state.initialized = true
+  initTraceContext()
 
   seedInitHooks(options)
-
-  for (const cleanup of initConsoleErrorCapture()) {
-    state.cleanups.push(cleanup)
+  state.options.integrations = resolveIntegrations(options)
+  for (const integration of state.options.integrations) {
+    registerIntegration(integration)
   }
-
-  for (const cleanup of initErrorCapture()) {
-    state.cleanups.push(cleanup)
-  }
-
-  initFetchCapture()
-  initXHRCapture()
-  initNavigationCapture()
-  initPageExitCapture()
-  initNetworkStatusCapture()
-  initSessionReplay()
-  if (state.options.capture.performance) {
-    initPerformanceCapture()
-  }
-  initClickCapture()
 }
 
 export function destroy(): void {
   clearQueue()
   clearCleanups()
   restoreExposureCapture()
-  restoreFetchCapture()
-  restoreXHRCapture()
-  restoreNavigationCapture()
   resetState()
 }
 
 export {
+  ClickIntegration,
+  ConsoleErrorIntegration,
+  FetchIntegration,
+  JSErrorIntegration,
+  NavigationIntegration,
+  NetworkStatusIntegration,
+  PageExitIntegration,
+  PerformanceIntegration,
+  SessionReplayIntegration,
+  XHRIntegration,
+  addIntegration,
 	  afterSend,
 	  addBreadcrumb,
 	  beforePushEvent,

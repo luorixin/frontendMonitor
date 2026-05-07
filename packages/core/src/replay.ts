@@ -1,3 +1,4 @@
+import { encodeJSONRequestBody } from "./compression"
 import { record } from "rrweb"
 import { SDK_VERSION } from "./config"
 import { addCleanup, clearTimer, state } from "./context"
@@ -79,29 +80,53 @@ export function flushReplayQueue(forceBeacon = false): Promise<void> {
 
 async function flushReplayQueueInternal(forceBeacon: boolean): Promise<void> {
   if (!state.options?.sessionReplay.enabled || !state.replayId) return
-  if (state.replayQueue.length === 0) return
 
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
+  await flushReplayTransportQueue(forceBeacon)
+
+  if (state.replayQueue.length === 0) return
 
   const queued = state.replayQueue.splice(0, state.replayQueue.length)
-  const payload = buildReplayChunkPayload(queued)
+  const payload = buildReplayChunkPayload(queued, state.replaySequence)
   const body = safeStringify(payload)
 
   if (body.length > state.options.sessionReplay.maxPayloadBytes) {
-    while (queued.length > 1 && safeStringify(buildReplayChunkPayload(queued)).length > state.options.sessionReplay.maxPayloadBytes) {
+    while (queued.length > 1 && safeStringify(buildReplayChunkPayload(queued, state.replaySequence)).length > state.options.sessionReplay.maxPayloadBytes) {
       const tail = queued.splice(Math.max(1, Math.floor(queued.length / 2)))
       state.replayQueue.unshift(...tail)
     }
   }
 
-  const finalPayload = buildReplayChunkPayload(queued)
+  const finalPayload = buildReplayChunkPayload(queued, state.replaySequence++)
   const result = await sendReplayChunk(finalPayload, forceBeacon)
   if (!result.success) {
     state.replayTransportQueue.push(finalPayload)
   }
 }
 
-function buildReplayChunkPayload(events: unknown[]): ReplayChunkPayload {
+async function flushReplayTransportQueue(forceBeacon: boolean): Promise<void> {
+  if (state.replayTransportQueue.length === 0) return
+
+  const queued = state.replayTransportQueue.splice(
+    0,
+    state.replayTransportQueue.length
+  )
+  const remaining: ReplayChunkPayload[] = []
+
+  for (const payload of queued) {
+    const result = await sendReplayChunk(payload, forceBeacon)
+    if (!result.success) {
+      remaining.push(payload)
+    }
+  }
+
+  state.replayTransportQueue.unshift(...remaining)
+}
+
+function buildReplayChunkPayload(
+  events: unknown[],
+  sequence: number
+): ReplayChunkPayload {
   if (!state.options || !state.replayId) {
     throw new Error("frontend-monitor replay is not initialized")
   }
@@ -125,7 +150,7 @@ function buildReplayChunkPayload(events: unknown[]): ReplayChunkPayload {
     release: state.options.release,
     replayId: state.replayId,
     sdkVersion: SDK_VERSION,
-    sequence: state.replaySequence++,
+    sequence,
     sessionId: state.sessionId,
     startedAt,
     title: document.title,
@@ -164,19 +189,68 @@ async function sendReplayChunk(
     }
   }
 
-  const response = await fetch(endpoint, {
-    body,
-    headers: {
-      "content-type": "application/json"
-    },
-    keepalive: forceBeacon,
-    method: "POST"
-  })
+  try {
+    if (!state.options?.compression.sessionReplay) {
+      const response = await fetch(endpoint, {
+        body,
+        headers: {
+          "content-type": "application/json"
+        },
+        keepalive: forceBeacon,
+        method: "POST"
+      })
 
-  return {
-    status: response.status,
-    success: response.ok,
-    transport: "xhr"
+      return {
+        status: response.status,
+        success: response.ok,
+        transport: "xhr"
+      }
+    }
+
+    const encodedBody = await encodeJSONRequestBody(
+      body,
+      state.options.compression.algorithm
+    )
+    const response = await fetch(endpoint, {
+      body: encodedBody.body,
+      headers: {
+        ...(encodedBody.contentEncoding
+          ? { "content-encoding": encodedBody.contentEncoding }
+          : {}),
+        "content-type": "application/json"
+      },
+      keepalive: forceBeacon,
+      method: "POST"
+    })
+
+    if (response.ok || !encodedBody.contentEncoding) {
+      return {
+        status: response.status,
+        success: response.ok,
+        transport: "xhr"
+      }
+    }
+
+    const retryResponse = await fetch(endpoint, {
+      body,
+      headers: {
+        "content-type": "application/json"
+      },
+      keepalive: forceBeacon,
+      method: "POST"
+    })
+
+    return {
+      status: retryResponse.status,
+      success: retryResponse.ok,
+      transport: "xhr"
+    }
+  } catch {
+    return {
+      reason: "network_error",
+      success: false,
+      transport: "xhr"
+    }
   }
 }
 

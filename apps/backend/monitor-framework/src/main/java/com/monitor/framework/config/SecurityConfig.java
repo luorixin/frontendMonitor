@@ -1,6 +1,7 @@
 package com.monitor.framework.config;
 
 import com.monitor.framework.security.filter.JwtAuthenticationTokenFilter;
+import com.monitor.framework.web.filter.MonitorGzipRequestFilter;
 import com.monitor.framework.security.handler.AccessDeniedHandlerImpl;
 import com.monitor.framework.security.handler.AuthenticationEntryPointImpl;
 import org.springframework.context.annotation.Bean;
@@ -34,6 +35,7 @@ public class SecurityConfig {
   @Bean
   public SecurityFilterChain filterChain(
       HttpSecurity http,
+      MonitorGzipRequestFilter monitorGzipRequestFilter,
       JwtAuthenticationTokenFilter jwtFilter,
       AuthenticationEntryPointImpl authEntryPoint,
       AccessDeniedHandlerImpl accessDeniedHandler
@@ -57,6 +59,7 @@ public class SecurityConfig {
             .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
             .anyRequest().authenticated()
         )
+        .addFilterBefore(monitorGzipRequestFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
