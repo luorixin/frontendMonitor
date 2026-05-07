@@ -1,5 +1,12 @@
 # frontend-monitor-examples-vue3
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [69ada60]
+  - frontend-monitor-vue3@2.1.0
+
 ## 0.1.3
 
 ### Patch Changes

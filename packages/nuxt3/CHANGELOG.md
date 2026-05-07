@@ -1,5 +1,17 @@
 # frontend-monitor-nuxt3
 
+## 2.1.0
+
+### Minor Changes
+
+- 69ada60: source map
+
+### Patch Changes
+
+- Updated dependencies [69ada60]
+  - frontend-monitor-core@2.1.0
+  - frontend-monitor-vue3@2.1.0
+
 ## 2.0.0
 
 ### Major Changes

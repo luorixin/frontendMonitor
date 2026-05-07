@@ -1,6 +1,6 @@
 {
   "name": "frontend-monitor-nuxt3",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": false,
   "description": "Nuxt 3 module adapter for the frontend-monitor browser SDK.",
   "type": "module",
