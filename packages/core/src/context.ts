@@ -48,7 +48,9 @@ export type MonitorState = {
   initialized: boolean
   integrations: MonitorIntegration[]
   lastClickAt: number
+  localizationStorePromise: Promise<void> | null
   networkStatus: NetworkStatus
+  offlineStorePromise: Promise<void> | null
   options: ResolvedMonitorOptions | null
   originalFetch: typeof window.fetch | null
   originalPushState: History["pushState"] | null
@@ -90,7 +92,9 @@ export const state: MonitorState = {
   initialized: false,
   integrations: [],
   lastClickAt: 0,
+  localizationStorePromise: null,
   networkStatus: "online",
+  offlineStorePromise: null,
   options: null,
   originalFetch: null,
   originalPushState: null,
@@ -156,7 +160,9 @@ export function resetState(): void {
   state.initialized = false
   state.integrations = []
   state.lastClickAt = 0
+  state.localizationStorePromise = null
   state.networkStatus = "online"
+  state.offlineStorePromise = null
   state.options = null
   state.originalFetch = null
   state.originalPushState = null

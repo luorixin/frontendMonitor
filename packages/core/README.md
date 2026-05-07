@@ -144,8 +144,8 @@ addIntegration({
 | `maxQueueLength` | `number` | `200` | 内存队列最大长度。超出后会丢弃最早的事件，保留最新事件。 |
 | `timeout` | `number` | `5000` | 网络发送超时时间，单位毫秒。主要用于 `xhr/fetch` 发送链路。 |
 | `ignoreUrls` | `Array<string \\| RegExp>` | `[] + dsn` | 需要忽略的请求地址。匹配到的 `fetch/xhr` 请求不会进入监控事件。SDK 会自动追加当前 `dsn`。 |
-| `offlineRetry` | `boolean` | `true` | 离线或发送失败时把 payload 写入本地队列，在线后自动重试。 |
-| `offlineQueueKey` | `string` | `__frontend_monitor_offline__` | 自动离线重试队列的 `localStorage` key。 |
+| `offlineRetry` | `boolean` | `true` | 离线或发送失败时把 payload 写入本地离线队列，在线后自动重试。 |
+| `offlineQueueKey` | `string` | `__frontend_monitor_offline__` | 自动离线重试队列的逻辑 key。SDK 会优先写入 IndexedDB，不可用时回退到 `localStorage`。 |
 | `retryMaxAttempts` | `number` | `3` | 自动重试最大次数。 |
 | `retryBaseDelay` | `number` | `1000` | 自动重试基础退避时间，单位毫秒。 |
 | `maxPayloadBytes` | `number` | `65536` | 单次 payload 最大字节数，超出后不再尝试传输。 |
@@ -331,7 +331,7 @@ Hook 执行顺序：
 
 ### 2. 离线时会进入自动重试队列
 
-检测到浏览器处于 `offline` 状态或发送失败时，SDK 会在 `offlineRetry = true` 时把 payload 写入 `localStorage` 重试队列，并在浏览器恢复在线后按退避策略重试。
+检测到浏览器处于 `offline` 状态或发送失败时，SDK 会在 `offlineRetry = true` 时把 payload 写入 IndexedDB 重试队列，并在浏览器恢复在线后按退避策略重试；如果当前环境不支持 IndexedDB，则会回退到 `localStorage`。
 如果你需要完全手动控制发送时机，可以改用 `localization: true` 和 `sendLocal()`。
 
 ### 3. `ignoreUrls` 会自动包含 `dsn`

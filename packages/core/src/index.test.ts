@@ -25,6 +25,7 @@ import {
 import {
   FakeCompressionStream,
   FakeImage,
+  FakeIndexedDB,
   FakeIntersectionObserver,
   FakePerformanceObserver,
   FakeXMLHttpRequest,
@@ -34,11 +35,13 @@ import {
   readBodyAsText,
   replayBodies,
   replayRequestHeaders,
+  resetFakeIndexedDB,
   setActiveSentPayloads,
   type SentPayload,
   xhrRequestHeaders,
   xhrPayloadBodies
 } from "./test-utils/browserFakes"
+import { readAsyncQueue } from "./queueStore"
 
 const { rrwebRecordMock } = vi.hoisted(() => ({
   rrwebRecordMock: vi.fn()
@@ -67,6 +70,7 @@ describe("frontend-monitor-core", () => {
     xhrRequestHeaders.splice(0, xhrRequestHeaders.length)
     replayBodies.splice(0, replayBodies.length)
     replayRequestHeaders.splice(0, replayRequestHeaders.length)
+    resetFakeIndexedDB()
     window.localStorage.clear()
     sendBeaconSpy = vi.fn(() => false)
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,6 +149,7 @@ describe("frontend-monitor-core", () => {
       "PerformanceObserver",
       FakePerformanceObserver as unknown as typeof PerformanceObserver
     )
+    vi.stubGlobal("indexedDB", FakeIndexedDB as unknown as IDBFactory)
     vi.stubGlobal("CompressionStream", undefined)
     vi.stubGlobal("Image", FakeImage as unknown as typeof Image)
     window.fetch = fetchMock as typeof window.fetch
@@ -154,6 +159,10 @@ describe("frontend-monitor-core", () => {
       FakeIntersectionObserver as unknown as typeof IntersectionObserver
     window.PerformanceObserver =
       FakePerformanceObserver as unknown as typeof PerformanceObserver
+    Object.defineProperty(window, "indexedDB", {
+      configurable: true,
+      value: FakeIndexedDB
+    })
     Object.defineProperty(window, "CompressionStream", {
       configurable: true,
       value: undefined
@@ -713,18 +722,23 @@ describe("frontend-monitor-core", () => {
     await flush()
 
     expect(sentPayloads).toHaveLength(0)
-    expect(
-      JSON.parse(
-        window.localStorage.getItem("__test_localized_payloads__") ?? "[]"
-      )
-    ).toHaveLength(1)
+    await vi.waitFor(async () => {
+      expect(
+        await readAsyncQueue({
+          key: "__test_localized_payloads__"
+        })
+      ).toHaveLength(1)
+    })
+    expect(window.localStorage.getItem("__test_localized_payloads__")).toBeNull()
 
     await sendLocal()
 
     expect(sentPayloads).toHaveLength(1)
     expect(
-      window.localStorage.getItem("__test_localized_payloads__")
-    ).toBeNull()
+      await readAsyncQueue({
+        key: "__test_localized_payloads__"
+      })
+    ).toHaveLength(0)
   })
 
   it("captures failed fetch requests", async () => {
@@ -928,15 +942,24 @@ describe("frontend-monitor-core", () => {
     await flush()
 
     expect(sentPayloads).toHaveLength(0)
-    expect(
-      JSON.parse(window.localStorage.getItem("__test_offline_payloads__") ?? "[]")
-    ).toHaveLength(1)
+    await vi.waitFor(async () => {
+      expect(
+        await readAsyncQueue({
+          key: "__test_offline_payloads__"
+        })
+      ).toHaveLength(1)
+    })
+    expect(window.localStorage.getItem("__test_offline_payloads__")).toBeNull()
 
     window.dispatchEvent(new Event("online"))
     await vi.advanceTimersByTimeAsync(10)
 
     expect(sentPayloads).toHaveLength(1)
-    expect(window.localStorage.getItem("__test_offline_payloads__")).toBeNull()
+    expect(
+      await readAsyncQueue({
+        key: "__test_offline_payloads__"
+      })
+    ).toHaveLength(0)
   })
 
   it("drops payloads that exceed maxPayloadBytes before transport", async () => {
@@ -1565,10 +1588,11 @@ describe("frontend-monitor-core", () => {
     expect(customSend).toHaveBeenCalledTimes(1)
     expect(sentPayloads).toHaveLength(0)
     expect(
-      JSON.parse(
-        window.localStorage.getItem("__test_custom_transport_offline__") ?? "[]"
-      )
+      await readAsyncQueue({
+        key: "__test_custom_transport_offline__"
+      })
     ).toHaveLength(1)
+    expect(window.localStorage.getItem("__test_custom_transport_offline__")).toBeNull()
   })
 
   it("does not propagate trace headers by default and does when enabled", async () => {

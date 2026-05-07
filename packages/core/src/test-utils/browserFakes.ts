@@ -14,9 +14,14 @@ export const xhrRequestHeaders: Array<Record<string, string>> = []
 export const xhrPayloadBodies: string[] = []
 export const intersectionObservers: FakeIntersectionObserver[] = []
 export const performanceObservers: FakePerformanceObserver[] = []
+const fakeIndexedDbDatabases = new Map<string, Map<string, Map<string, unknown>>>()
 
 export function setActiveSentPayloads(payloads: SentPayload[]): void {
   activeSentPayloads = payloads
+}
+
+export function resetFakeIndexedDB(): void {
+  fakeIndexedDbDatabases.clear()
 }
 
 export async function readBodyAsText(body: unknown): Promise<string | null> {
@@ -259,3 +264,149 @@ export class FakeCompressionStream {
     this.writable = stream.writable
   }
 }
+
+class FakeIDBRequest<T> {
+  error: DOMException | null = null
+  onerror: ((this: IDBRequest<T>, event: Event) => unknown) | null = null
+  onsuccess: ((this: IDBRequest<T>, event: Event) => unknown) | null = null
+  result!: T
+
+  fail(message: string): void {
+    this.error = new DOMException(message)
+    queueMicrotask(() => {
+      this.onerror?.call(this as unknown as IDBRequest<T>, new Event("error"))
+    })
+  }
+
+  succeed(result: T): void {
+    this.result = result
+    queueMicrotask(() => {
+      this.onsuccess?.call(this as unknown as IDBRequest<T>, new Event("success"))
+    })
+  }
+}
+
+class FakeIDBOpenDBRequest<T> extends FakeIDBRequest<T> {
+  onupgradeneeded:
+    | ((this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => unknown)
+    | null = null
+
+  upgrade(): void {
+    this.onupgradeneeded?.call(
+      this as unknown as IDBOpenDBRequest,
+      new Event("upgradeneeded") as IDBVersionChangeEvent
+    )
+  }
+}
+
+class FakeDOMStringList {
+  constructor(private readonly getValues: () => string[]) {}
+
+  contains(value: string): boolean {
+    return this.getValues().includes(value)
+  }
+
+  item(index: number): string | null {
+    return this.getValues()[index] ?? null
+  }
+}
+
+class FakeIDBObjectStore {
+  constructor(private readonly values: Map<string, unknown>) {}
+
+  delete(key: IDBValidKey): IDBRequest<undefined> {
+    const request = new FakeIDBRequest<undefined>()
+    this.values.delete(String(key))
+    request.succeed(undefined)
+    return request as unknown as IDBRequest<undefined>
+  }
+
+  get(key: IDBValidKey): IDBRequest<unknown> {
+    const request = new FakeIDBRequest<unknown>()
+    request.succeed(this.values.get(String(key)))
+    return request as unknown as IDBRequest<unknown>
+  }
+
+  put(value: unknown, key: IDBValidKey): IDBRequest<IDBValidKey> {
+    const request = new FakeIDBRequest<IDBValidKey>()
+    this.values.set(String(key), value)
+    request.succeed(key)
+    return request as unknown as IDBRequest<IDBValidKey>
+  }
+}
+
+class FakeIDBTransaction {
+  constructor(
+    private readonly storeName: string,
+    private readonly stores: Map<string, Map<string, unknown>>
+  ) {}
+
+  objectStore(name: string): IDBObjectStore {
+    if (name !== this.storeName) {
+      throw new DOMException(`Object store ${name} not found`)
+    }
+
+    const store = this.stores.get(name)
+    if (!store) {
+      throw new DOMException(`Object store ${name} not found`)
+    }
+
+    return new FakeIDBObjectStore(store) as unknown as IDBObjectStore
+  }
+}
+
+class FakeIDBDatabase {
+  objectStoreNames: FakeDOMStringList
+
+  constructor(
+    readonly name: string,
+    private readonly stores: Map<string, Map<string, unknown>>
+  ) {
+    this.objectStoreNames = new FakeDOMStringList(() => Array.from(this.stores.keys()))
+  }
+
+  close(): void {}
+
+  createObjectStore(name: string): IDBObjectStore {
+    const store = new Map<string, unknown>()
+    this.stores.set(name, store)
+    return new FakeIDBObjectStore(store) as unknown as IDBObjectStore
+  }
+
+  transaction(
+    storeName: string,
+    _mode?: IDBTransactionMode
+  ): IDBTransaction {
+    return new FakeIDBTransaction(
+      storeName,
+      this.stores
+    ) as unknown as IDBTransaction
+  }
+}
+
+export const FakeIndexedDB = {
+  open(name: string, _version?: number): IDBOpenDBRequest {
+    const request = new FakeIDBOpenDBRequest<FakeIDBDatabase>()
+
+    queueMicrotask(() => {
+      let stores = fakeIndexedDbDatabases.get(name)
+      const isNewDatabase = !stores
+
+      if (!stores) {
+        stores = new Map<string, Map<string, unknown>>()
+        fakeIndexedDbDatabases.set(name, stores)
+      }
+
+      const database = new FakeIDBDatabase(name, stores)
+      request.result = database
+
+      if (isNewDatabase) {
+        request.upgrade()
+      }
+
+      request.succeed(database)
+    })
+
+    return request as unknown as IDBOpenDBRequest
+  }
+} satisfies Pick<IDBFactory, "open">

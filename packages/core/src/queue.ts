@@ -26,7 +26,7 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
   }
 
   if (state.networkStatus === "offline") {
-    persistOfflineEvents([event])
+    void persistOfflineEvents([event])
     debugLog("drop event: offline")
     return
   }
@@ -100,7 +100,7 @@ async function flushQueueInternal(options?: {
   }
 
   if (state.options.localization) {
-    const persisted = persistLocalizedPayload(processedPayload)
+    const persisted = await persistLocalizedPayload(processedPayload)
     debugLog(persisted ? "persist localized payload" : "persist localized failed")
     return
   }
@@ -118,7 +118,7 @@ async function flushQueueInternal(options?: {
 
   if (!result.success) {
     if (result.reason !== "payload_too_large") {
-      persistOfflinePayload(processedPayload)
+      await persistOfflinePayload(processedPayload)
     }
     debugLog("send failed", result)
     return
