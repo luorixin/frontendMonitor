@@ -7,6 +7,7 @@ import com.monitor.core.domain.TableDataInfo;
 import com.monitor.system.domain.monitor.query.MonitorSourceMapArtifactQuery;
 import com.monitor.system.domain.monitor.vo.MonitorSourceMapArtifactVo;
 import com.monitor.system.service.monitor.IMonitorSourceMapService;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,9 +36,21 @@ public class MonitorSourceMapController {
   public ApiResponse<MonitorSourceMapArtifactVo> upload(
       @RequestParam("projectId") Long projectId,
       @RequestParam("release") String release,
+      @RequestParam(value = "dist", required = false) String dist,
       @RequestParam("artifact") String artifact,
       @RequestParam("file") MultipartFile file
   ) {
-    return ApiResponse.ok(sourceMapService.uploadSourceMap(projectId, release, artifact, file));
+    return ApiResponse.ok(sourceMapService.uploadSourceMap(projectId, release, dist, artifact, file));
+  }
+
+  @PostMapping("/batch")
+  public ApiResponse<List<MonitorSourceMapArtifactVo>> uploadBatch(
+      @RequestParam("projectId") Long projectId,
+      @RequestParam("release") String release,
+      @RequestParam(value = "dist", required = false) String dist,
+      @RequestParam("artifacts") List<String> artifacts,
+      @RequestParam("files") List<MultipartFile> files
+  ) {
+    return ApiResponse.ok(sourceMapService.uploadSourceMaps(projectId, release, dist, artifacts, files));
   }
 }

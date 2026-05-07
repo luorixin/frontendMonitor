@@ -10,6 +10,7 @@ public class MonitorResolvedEventVo {
   private Long eventId;
   private String eventType;
   private String release;
+  private String dist;
   private boolean applied;
   private String status;
   private String originalStack;

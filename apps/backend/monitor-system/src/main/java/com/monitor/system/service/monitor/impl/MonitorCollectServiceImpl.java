@@ -174,6 +174,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     event.setAppVersion(base.getAppVersion());
     event.setEnvironment(base.getEnvironment());
     event.setRelease(base.getRelease());
+    event.setDist(base.getDist());
     event.setUserId(base.getUserId());
     event.setDeviceId(base.getDeviceId());
     event.setSessionId(base.getSessionId());

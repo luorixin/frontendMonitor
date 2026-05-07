@@ -3,6 +3,8 @@ import { debugLog, enqueueEvent } from "../queue"
 import type { PerformanceEventPayload } from "../types"
 import { now } from "../utils"
 
+const WEB_VITAL_FLUSH_DELAY = 10_000
+
 export function initPerformanceCapture(): void {
   if (!window.performance) return
 
@@ -39,10 +41,17 @@ export function startSoftNavigationCapture(input: {
   to: string
   trigger: string
 }): void {
+  if (state.softNavigation.flushTimer) {
+    clearTimeout(state.softNavigation.flushTimer)
+  }
+
   state.softNavigation = {
     active: true,
     clsValue: 0,
     fromRoute: input.from,
+    flushTimer: setTimeout(() => {
+      flushSoftNavigationVitals()
+    }, WEB_VITAL_FLUSH_DELAY),
     hasClsSample: false,
     latestLcp: 0,
     maxInp: 0,
@@ -55,6 +64,10 @@ export function startSoftNavigationCapture(input: {
 export function flushSoftNavigationVitals(): void {
   if (!state.softNavigation.active) {
     return
+  }
+
+  if (state.softNavigation.flushTimer) {
+    clearTimeout(state.softNavigation.flushTimer)
   }
 
   const navigationType = `soft-${state.softNavigation.trigger}`
@@ -93,6 +106,7 @@ export function flushSoftNavigationVitals(): void {
     active: false,
     clsValue: 0,
     fromRoute: "",
+    flushTimer: null,
     hasClsSample: false,
     latestLcp: 0,
     maxInp: 0,
@@ -200,9 +214,14 @@ function initWebVitalObservers(): void {
     }
   }
 
+  const delayedFlushTimer = window.setTimeout(() => {
+    flushVitals()
+  }, WEB_VITAL_FLUSH_DELAY)
+
   window.addEventListener("pagehide", flushVitals, { once: true })
   document.addEventListener("visibilitychange", onVisibilityChange)
   addCleanup(() => {
+    window.clearTimeout(delayedFlushTimer)
     window.removeEventListener("pagehide", flushVitals)
     document.removeEventListener("visibilitychange", onVisibilityChange)
   })

@@ -15,6 +15,7 @@ public class MonitorEventQuery {
   private String appVersion;
   private String environment;
   private String release;
+  private String dist;
   private String userId;
   private String sessionId;
   private String deviceId;

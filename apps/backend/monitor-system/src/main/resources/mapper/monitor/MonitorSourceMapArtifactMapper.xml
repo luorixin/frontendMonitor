@@ -7,7 +7,9 @@
     <id property="id" column="id"/>
     <result property="projectId" column="project_id"/>
     <result property="release" column="release"/>
+    <result property="dist" column="dist"/>
     <result property="artifact" column="artifact"/>
+    <result property="artifactHash" column="artifact_hash"/>
     <result property="fileName" column="file_name"/>
     <result property="fileSize" column="file_size"/>
     <result property="sourceMapJson" column="source_map_json"/>
@@ -18,8 +20,10 @@
   <sql id="selectMonitorSourceMapArtifact">
     SELECT id,
            project_id,
-           `release` AS release,
+           `release`,
+           dist,
            artifact,
+           artifact_hash,
            file_name,
            file_size,
            source_map_json,
@@ -40,6 +44,9 @@
       <if test="artifact != null and artifact != ''">
         AND artifact LIKE CONCAT('%', #{artifact}, '%')
       </if>
+      <if test="dist != null and dist != ''">
+        AND dist = #{dist}
+      </if>
     </where>
     ORDER BY update_time DESC, id DESC
   </select>
@@ -48,27 +55,31 @@
     <include refid="selectMonitorSourceMapArtifact"/>
     WHERE project_id = #{projectId}
       AND `release` = #{release}
+      AND dist = #{dist}
       AND artifact = #{artifact}
   </select>
 
-  <select id="selectByProjectRelease" resultMap="MonitorSourceMapArtifactResult">
+  <select id="selectByProjectReleaseDist" resultMap="MonitorSourceMapArtifactResult">
     <include refid="selectMonitorSourceMapArtifact"/>
     WHERE project_id = #{projectId}
       AND `release` = #{release}
+      AND dist = #{dist}
     ORDER BY update_time DESC, id DESC
   </select>
 
   <insert id="insertSourceMap" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO monitor_source_map_artifact (
-      project_id, `release`, artifact, file_name, file_size, source_map_json
+      project_id, `release`, dist, artifact, artifact_hash, file_name, file_size, source_map_json
     ) VALUES (
-      #{projectId}, #{release}, #{artifact}, #{fileName}, #{fileSize}, #{sourceMapJson}
+      #{projectId}, #{release}, #{dist}, #{artifact}, #{artifactHash}, #{fileName}, #{fileSize}, #{sourceMapJson}
     )
   </insert>
 
   <update id="updateSourceMap">
     UPDATE monitor_source_map_artifact
-    SET file_name = #{fileName},
+    SET dist = #{dist},
+        artifact_hash = #{artifactHash},
+        file_name = #{fileName},
         file_size = #{fileSize},
         source_map_json = #{sourceMapJson}
     WHERE id = #{id}

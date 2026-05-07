@@ -14,6 +14,7 @@ import {
   intersectionUnobserve,
   sendLocal,
   setContext,
+  setDist,
   setEnvironment,
   setRelease,
   setTag,
@@ -1008,7 +1009,7 @@ describe("frontend-monitor-core", () => {
     expect(sentPayloads).toHaveLength(0)
   })
 
-  it("adds release environment tags contexts and bounded breadcrumbs to payload base", async () => {
+  it("adds release dist environment tags contexts and bounded breadcrumbs to payload base", async () => {
     init({
       appName: "demo",
       batchSize: 1,
@@ -1025,6 +1026,7 @@ describe("frontend-monitor-core", () => {
     })
 
     setRelease("1.2.3")
+    setDist("web-42")
     setEnvironment("production")
     setTag("region", "us")
     setContext("device", { memory: "8g" })
@@ -1036,6 +1038,7 @@ describe("frontend-monitor-core", () => {
 
     const base = sentPayloads[0]?.base
     expect(base?.release).toBe("1.2.3")
+    expect(base?.dist).toBe("web-42")
     expect(base?.environment).toBe("production")
     expect(base?.tags).toEqual({ region: "us" })
     expect(base?.contexts).toEqual({ device: { memory: "8g" } })
@@ -1164,6 +1167,7 @@ describe("frontend-monitor-core", () => {
         pageView: false,
         performance: true,
         promiseRejection: false,
+        requestPerformance: false,
         routeChange: false,
         xhrError: false
       },
@@ -1174,10 +1178,21 @@ describe("frontend-monitor-core", () => {
     await vi.advanceTimersByTimeAsync(0)
     await flush()
 
-    expect(sentPayloads).toHaveLength(1)
-    expect(sentPayloads[0]?.events[0]?.type).toBe("performance")
-    expect(sentPayloads[0]?.events[0]?.metrics.ttfb).toBe(30)
-    expect(sentPayloads[0]?.events[0]?.metrics.firstContentfulPaint).toBe(55)
+    const performanceEvents = sentPayloads
+      .flatMap(payload => payload.events)
+      .filter(event => event.type === "performance" && event.performanceType === "navigation")
+
+    expect(performanceEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metrics: expect.objectContaining({
+            firstContentfulPaint: 55,
+            ttfb: 30
+          }),
+          type: "performance"
+        })
+      ])
+    )
   })
 
   it("captures web vital performance entries when enabled", async () => {
@@ -1217,6 +1232,7 @@ describe("frontend-monitor-core", () => {
         pageView: false,
         performance: true,
         promiseRejection: false,
+        requestPerformance: false,
         routeChange: false,
         xhrError: false
       },

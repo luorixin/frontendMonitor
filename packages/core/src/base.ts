@@ -16,6 +16,7 @@ export function buildBasePayload(): BasePayload {
     breadcrumbs: state.breadcrumbs.length > 0 ? [...state.breadcrumbs] : undefined,
     contexts: Object.keys(state.contexts).length > 0 ? { ...state.contexts } : undefined,
     deviceId: state.deviceId,
+    dist: options.dist,
     environment: options.environment,
     pageId: state.pageId,
     replayId: state.replayId ?? undefined,

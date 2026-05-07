@@ -11,6 +11,7 @@ import com.monitor.system.domain.monitor.MonitorSourceMapArtifact;
 import com.monitor.system.domain.monitor.query.MonitorEventQuery;
 import com.monitor.system.domain.monitor.vo.MonitorEventRawVo;
 import com.monitor.system.domain.monitor.vo.MonitorResolvedEventVo;
+import com.monitor.system.domain.monitor.vo.MonitorSourceContextLineVo;
 import com.monitor.system.domain.monitor.vo.MonitorSourceMapFrameVo;
 import com.monitor.system.mapper.monitor.MonitorEventMapper;
 import com.monitor.system.service.monitor.IMonitorEventService;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MonitorEventServiceImpl implements IMonitorEventService {
 
+  private static final int SOURCE_CONTEXT_RADIUS = 2;
   private static final Pattern STACK_FRAME_PATTERN =
       Pattern.compile("^\\s*at\\s+(?:(.*?)\\s+\\()?(.+):(\\d+):(\\d+)\\)?$");
 
@@ -76,6 +78,7 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
     resolved.setEventId(event.getId());
     resolved.setEventType(event.getEventType());
     resolved.setRelease(event.getRelease());
+    resolved.setDist(event.getDist());
 
     String originalStack = extractStack(event.getPayloadJson());
     resolved.setOriginalStack(originalStack);
@@ -94,9 +97,10 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
       return resolved;
     }
 
-    List<MonitorSourceMapArtifact> artifacts = sourceMapService.selectArtifactsByRelease(
+    List<MonitorSourceMapArtifact> artifacts = sourceMapService.selectArtifactsByReleaseDist(
         event.getProjectId(),
-        event.getRelease()
+        event.getRelease(),
+        event.getDist()
     );
     if (artifacts.isEmpty()) {
       resolved.setApplied(false);
@@ -108,6 +112,7 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
 
     List<MonitorSourceMapFrameVo> frames = parseFrames(originalStack);
     Map<Long, SourceMapConsumerV3> consumers = new HashMap<>();
+    Map<Long, JsonNode> sourceMapNodes = new HashMap<>();
     boolean applied = false;
     StringBuilder resolvedStackBuilder = new StringBuilder();
     List<String> lines = List.of(originalStack.split("\\R"));
@@ -127,6 +132,7 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
       String resolvedLine = line;
       MonitorSourceMapArtifact artifact = findBestArtifact(frame.getGeneratedFile(), artifacts);
       if (artifact != null) {
+        frame.setDist(artifact.getDist());
         frame.setArtifact(artifact.getArtifact());
         OriginalMapping mapping = lookupMapping(consumers, artifact, frame.getGeneratedLine(), frame.getGeneratedColumn());
         if (mapping != null) {
@@ -135,6 +141,7 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
           frame.setOriginalLine(mapping.getLineNumber());
           frame.setOriginalColumn(mapping.getColumnPosition());
           frame.setIdentifier(mapping.getIdentifier());
+          frame.setSourceContext(resolveSourceContext(sourceMapNodes, artifact, mapping.getOriginalFile(), mapping.getLineNumber()));
           resolvedLine = buildResolvedLine(frame);
           applied = true;
         }
@@ -177,6 +184,14 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
       return consumer;
     } catch (SourceMapParseException e) {
       throw new ServiceException(400, "monitor.errors.invalidSourceMap");
+    }
+  }
+
+  private JsonNode parseSourceMapNode(MonitorSourceMapArtifact artifact) {
+    try {
+      return objectMapper.readTree(artifact.getSourceMapJson());
+    } catch (IOException e) {
+      throw new ServiceException("monitor.errors.invalidSourceMap");
     }
   }
 
@@ -232,6 +247,68 @@ public class MonitorEventServiceImpl implements IMonitorEventService {
       }
     }
     return bestScore > 0 ? best : null;
+  }
+
+  private List<MonitorSourceContextLineVo> resolveSourceContext(
+      Map<Long, JsonNode> sourceMapNodes,
+      MonitorSourceMapArtifact artifact,
+      String originalSource,
+      Integer originalLine
+  ) {
+    if (originalSource == null || originalLine == null || originalLine <= 0) {
+      return List.of();
+    }
+
+    JsonNode sourceMapNode = sourceMapNodes.computeIfAbsent(artifact.getId(), ignored -> parseSourceMapNode(artifact));
+    JsonNode sourcesNode = sourceMapNode.get("sources");
+    JsonNode sourcesContentNode = sourceMapNode.get("sourcesContent");
+    if (sourcesNode == null || !sourcesNode.isArray() || sourcesContentNode == null || !sourcesContentNode.isArray()) {
+      return List.of();
+    }
+
+    int sourceIndex = findBestSourceIndex(originalSource, sourcesNode);
+    if (sourceIndex < 0 || sourceIndex >= sourcesContentNode.size()) {
+      return List.of();
+    }
+
+    JsonNode contentNode = sourcesContentNode.get(sourceIndex);
+    if (contentNode == null || contentNode.isNull()) {
+      return List.of();
+    }
+
+    String[] lines = contentNode.asText("").split("\\R", -1);
+    if (lines.length == 0) {
+      return List.of();
+    }
+
+    int startLine = Math.max(1, originalLine - SOURCE_CONTEXT_RADIUS);
+    int endLine = Math.min(lines.length, originalLine + SOURCE_CONTEXT_RADIUS);
+    List<MonitorSourceContextLineVo> context = new ArrayList<>();
+    for (int lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
+      MonitorSourceContextLineVo line = new MonitorSourceContextLineVo();
+      line.setLineNumber(lineNumber);
+      line.setContent(lines[lineNumber - 1]);
+      line.setFocus(lineNumber == originalLine);
+      context.add(line);
+    }
+    return context;
+  }
+
+  private int findBestSourceIndex(String originalSource, JsonNode sourcesNode) {
+    int bestIndex = -1;
+    int bestScore = -1;
+    for (int index = 0; index < sourcesNode.size(); index++) {
+      JsonNode candidateNode = sourcesNode.get(index);
+      if (candidateNode == null || candidateNode.isNull()) {
+        continue;
+      }
+      int score = matchScore(originalSource, candidateNode.asText());
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    }
+    return bestIndex;
   }
 
   private int matchScore(String generatedFile, String artifact) {

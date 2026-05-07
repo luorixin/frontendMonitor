@@ -8,6 +8,7 @@ import lombok.Setter;
 public class MonitorSourceMapArtifactQuery {
   private Long projectId;
   private String release;
+  private String dist;
   private String artifact;
   private Integer pageNum = 1;
   private Integer pageSize = 20;

@@ -20,6 +20,7 @@ public class MonitorEvent extends BaseEntity {
   private String appVersion;
   private String environment;
   private String release;
+  private String dist;
   private String userId;
   private String deviceId;
   private String sessionId;

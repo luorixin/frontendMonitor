@@ -95,8 +95,8 @@ captureError(new Error("manual error"))
 | `resourceError` | `true` | 采集脚本、样式、图片等资源加载失败。 |
 | `fetchError` | `true` | 采集失败的 `fetch` 请求。 |
 | `xhrError` | `true` | 采集失败的 `XMLHttpRequest` 请求。 |
-| `performance` | `false` | 采集页面性能事件。当前默认关闭。 |
-| `requestPerformance` | `false` | 采集成功请求的性能事件。当前默认关闭。 |
+| `performance` | `true` | 采集页面性能事件，包含 navigation、resource 和 Web Vitals。 |
+| `requestPerformance` | `true` | 采集成功请求的性能事件。 |
 | `pageView` | `true` | 初始化时自动发送一次 PV。 |
 | `routeChange` | `true` | 采集 `hashchange / pushState / replaceState / popstate`。 |
 | `click` | `true` | 采集点击事件。输入类元素内容会被脱敏。 |
@@ -128,6 +128,12 @@ captureError(new Error("manual error"))
 - `clearContext()`
 
 SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcrumbs，随下一次 payload 上报。
+
+### Web Vitals 发送时机
+
+- `FCP / TTFB` 会在页面加载完成后尽快发送。
+- `LCP / CLS / INP` 会在页面隐藏、页面退出，或最多约 10 秒后的兜底 flush 时发送。
+- SPA soft navigation 的 `LCP / CLS / INP` 也会在路由切换结束后进入同样的兜底 flush。
 
 ### Session Replay
 

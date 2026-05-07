@@ -21,6 +21,7 @@ public class MonitorCollectBaseDto {
   private String sdkVersion;
   private String environment;
   private String release;
+  private String dist;
   private Map<String, String> tags;
   private Map<String, Object> contexts;
   private List<Map<String, Object>> breadcrumbs;

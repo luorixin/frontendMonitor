@@ -10,6 +10,7 @@ public class MonitorSourceMapArtifactVo {
   private Long id;
   private Long projectId;
   private String release;
+  private String dist;
   private String artifact;
   private String fileName;
   private Long fileSize;

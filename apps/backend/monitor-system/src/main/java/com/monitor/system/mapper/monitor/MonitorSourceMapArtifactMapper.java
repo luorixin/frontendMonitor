@@ -13,12 +13,14 @@ public interface MonitorSourceMapArtifactMapper {
   MonitorSourceMapArtifact selectByProjectReleaseArtifact(
       @Param("projectId") Long projectId,
       @Param("release") String release,
+      @Param("dist") String dist,
       @Param("artifact") String artifact
   );
 
-  List<MonitorSourceMapArtifact> selectByProjectRelease(
+  List<MonitorSourceMapArtifact> selectByProjectReleaseDist(
       @Param("projectId") Long projectId,
-      @Param("release") String release
+      @Param("release") String release,
+      @Param("dist") String dist
   );
 
   int insertSourceMap(MonitorSourceMapArtifact artifact);

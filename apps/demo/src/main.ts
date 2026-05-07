@@ -104,7 +104,8 @@ const demoOptions = {
   appVersion: "0.1.0",
   batchSize: 2,
   capture: {
-    performance: true
+    performance: true,
+    requestPerformance: true
   },
   debug: true,
   dsn,

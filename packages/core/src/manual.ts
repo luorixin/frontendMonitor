@@ -62,6 +62,11 @@ export function setRelease(release: string): void {
   state.options.release = release
 }
 
+export function setDist(dist: string): void {
+  if (!state.options) return
+  state.options.dist = dist
+}
+
 export function setEnvironment(environment: string): void {
   if (!state.options) return
   state.options.environment = environment

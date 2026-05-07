@@ -15,6 +15,7 @@ type SoftNavigationState = {
   active: boolean
   clsValue: number
   fromRoute: string
+  flushTimer: ReturnType<typeof setTimeout> | null
   hasClsSample: boolean
   latestLcp: number
   maxInp: number
@@ -108,6 +109,7 @@ export const state: MonitorState = {
     active: false,
     clsValue: 0,
     fromRoute: "",
+    flushTimer: null,
     hasClsSample: false,
     latestLcp: 0,
     maxInp: 0,
@@ -170,6 +172,7 @@ export function resetState(): void {
     active: false,
     clsValue: 0,
     fromRoute: "",
+    flushTimer: clearTimer(state.softNavigation.flushTimer),
     hasClsSample: false,
     latestLcp: 0,
     maxInp: 0,

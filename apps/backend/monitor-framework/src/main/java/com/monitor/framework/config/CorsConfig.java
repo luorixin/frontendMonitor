@@ -31,7 +31,7 @@ public class CorsConfig {
     collectConfig.setAllowedOriginPatterns(List.of("*"));
     collectConfig.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
     collectConfig.setAllowedHeaders(List.of("*"));
-    collectConfig.setAllowCredentials(false);
+    collectConfig.setAllowCredentials(true);
     source.registerCorsConfiguration("/api/v1/monitor/collect/**", collectConfig);
     source.registerCorsConfiguration("/api/v1/monitor/replays/**", collectConfig);
 

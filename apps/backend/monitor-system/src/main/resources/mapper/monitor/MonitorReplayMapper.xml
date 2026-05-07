@@ -38,7 +38,7 @@
 
   <sql id="selectReplaySessionColumns">
     SELECT id, project_id, replay_id, session_id, page_id, app_name, app_version,
-           `release` AS release, environment, user_id, device_id, initial_url, title,
+           `release`, environment, user_id, device_id, initial_url, title,
            started_at, last_seen_at, chunk_count, event_count, create_time, update_time
     FROM monitor_replay_session
   </sql>

@@ -95,6 +95,7 @@ export type EventRecord = {
   appVersion?: string
   environment?: string
   release?: string
+  dist?: string
   userId?: string
   deviceId?: string
   sessionId?: string
@@ -125,18 +126,33 @@ export type EventRaw = {
   baseJson: string
 }
 
+export type SourceContextLine = {
+  lineNumber: number
+  content: string
+  focus: boolean
+}
+
 export type SourceMapFrame = {
+  rawLine?: string
   functionName?: string
-  fileName?: string
-  lineNumber?: number
-  columnNumber?: number
+  generatedFile?: string
+  generatedLine?: number
+  generatedColumn?: number
+  dist?: string
+  artifact?: string
   resolved?: boolean
+  originalSource?: string
+  originalLine?: number
+  originalColumn?: number
+  identifier?: string
+  sourceContext?: SourceContextLine[]
 }
 
 export type ResolvedEvent = {
   eventId: number
   eventType: string
   release?: string
+  dist?: string
   applied: boolean
   status: string
   originalStack?: string
@@ -197,6 +213,7 @@ export type SourceMapArtifact = {
   id: number
   projectId: number
   release: string
+  dist?: string
   artifact: string
   fileName: string
   fileSize: number

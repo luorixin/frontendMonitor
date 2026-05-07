@@ -7,7 +7,7 @@ import { JsonViewer } from "../../../components/JsonViewer"
 import { PageHeader } from "../../../components/PageHeader"
 import { IssueStatusTag, PriorityTag } from "../../../components/StatusTag"
 import { useProject } from "../../../app/project"
-import type { EventRaw, EventRecord, Issue, ResolvedEvent, TrendPoint } from "../../../types/models"
+import type { EventRaw, EventRecord, Issue, ResolvedEvent, SourceMapFrame, TrendPoint } from "../../../types/models"
 import { formatDateTime } from "../../../utils/date"
 import { buildParams } from "../../../utils/query"
 import { safeParseJson } from "../../../utils/json"
@@ -16,22 +16,38 @@ import { toBackendDateTime } from "../../../utils/date"
 export function ReportsPage() {
   const { currentProject, currentProjectId, dateRange } = useProject()
   const [events, setEvents] = useState<EventRecord[]>([])
+  const [eventsTotal, setEventsTotal] = useState(0)
+  const [eventsPageNum, setEventsPageNum] = useState(1)
+  const [eventsPageSize, setEventsPageSize] = useState(20)
   const [issues, setIssues] = useState<Issue[]>([])
+  const [issuesTotal, setIssuesTotal] = useState(0)
+  const [issuesPageNum, setIssuesPageNum] = useState(1)
+  const [issuesPageSize, setIssuesPageSize] = useState(20)
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
   const [eventRaw, setEventRaw] = useState<EventRaw | null>(null)
   const [resolvedEvent, setResolvedEvent] = useState<ResolvedEvent | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
   const [issueEvents, setIssueEvents] = useState<EventRecord[]>([])
+  const [issueEventsTotal, setIssueEventsTotal] = useState(0)
+  const [issueEventsPageNum, setIssueEventsPageNum] = useState(1)
+  const [issueEventsPageSize, setIssueEventsPageSize] = useState(20)
   const [issueTrend, setIssueTrend] = useState<TrendPoint[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   async function loadPageData() {
     if (!currentProjectId) return
-    const params = buildParams({
+    const eventParams = buildParams({
       endTime: toBackendDateTime(dateRange[1]),
-      pageNum: 1,
-      pageSize: 50,
+      pageNum: eventsPageNum,
+      pageSize: eventsPageSize,
+      projectId: currentProjectId,
+      startTime: toBackendDateTime(dateRange[0])
+    })
+    const issueParams = buildParams({
+      endTime: toBackendDateTime(dateRange[1]),
+      pageNum: issuesPageNum,
+      pageSize: issuesPageSize,
       projectId: currentProjectId,
       startTime: toBackendDateTime(dateRange[0])
     })
@@ -39,9 +55,11 @@ export function ReportsPage() {
     setLoading(true)
     setError("")
     try {
-      const [eventTable, issueTable] = await Promise.all([listEvents(params), listIssues(params)])
+      const [eventTable, issueTable] = await Promise.all([listEvents(eventParams), listIssues(issueParams)])
       setEvents(eventTable.rows)
+      setEventsTotal(eventTable.total)
       setIssues(issueTable.rows)
+      setIssuesTotal(issueTable.total)
     } catch (reason) {
       setError(getErrorMessage(reason, "报表数据加载失败"))
     } finally {
@@ -50,8 +68,14 @@ export function ReportsPage() {
   }
 
   useEffect(() => {
-    void loadPageData()
+    setEventsPageNum(1)
+    setIssuesPageNum(1)
+    setIssueEventsPageNum(1)
   }, [currentProjectId, dateRange])
+
+  useEffect(() => {
+    void loadPageData()
+  }, [currentProjectId, dateRange, eventsPageNum, eventsPageSize, issuesPageNum, issuesPageSize])
 
   async function inspectEvent(id: number) {
     const [event, raw, resolved] = await Promise.all([getEvent(id), getEventRaw(id), getResolvedEvent(id)])
@@ -60,12 +84,12 @@ export function ReportsPage() {
     setResolvedEvent(resolved)
   }
 
-  async function inspectIssue(issue: Issue) {
+  async function inspectIssue(issue: Issue, pageNum = 1, pageSize = issueEventsPageSize) {
     if (!currentProjectId) return
     const params = buildParams({
       endTime: toBackendDateTime(dateRange[1]),
-      pageNum: 1,
-      pageSize: 20,
+      pageNum,
+      pageSize,
       projectId: currentProjectId,
       startTime: toBackendDateTime(dateRange[0])
     })
@@ -75,6 +99,9 @@ export function ReportsPage() {
     ])
     setSelectedIssue(issue)
     setIssueEvents(eventTable.rows)
+    setIssueEventsTotal(eventTable.total)
+    setIssueEventsPageNum(pageNum)
+    setIssueEventsPageSize(pageSize)
     setIssueTrend(trendPoints)
   }
 
@@ -104,6 +131,7 @@ export function ReportsPage() {
                     },
                     { dataIndex: "environment", key: "environment", title: "环境" },
                     { dataIndex: "release", key: "release", title: "Release" },
+                    { dataIndex: "dist", key: "dist", title: "Dist" },
                     {
                       dataIndex: "occurredAt",
                       key: "occurredAt",
@@ -118,6 +146,16 @@ export function ReportsPage() {
                   ]}
                   dataSource={events}
                   loading={loading}
+                  pagination={{
+                    current: eventsPageNum,
+                    onChange: (page, pageSize) => {
+                      setEventsPageNum(page)
+                      setEventsPageSize(pageSize)
+                    },
+                    pageSize: eventsPageSize,
+                    showSizeChanger: true,
+                    total: eventsTotal
+                  }}
                   rowKey="id"
                 />
               </Card>
@@ -152,6 +190,16 @@ export function ReportsPage() {
                   ]}
                   dataSource={issues}
                   loading={loading}
+                  pagination={{
+                    current: issuesPageNum,
+                    onChange: (page, pageSize) => {
+                      setIssuesPageNum(page)
+                      setIssuesPageSize(pageSize)
+                    },
+                    pageSize: issuesPageSize,
+                    showSizeChanger: true,
+                    total: issuesTotal
+                  }}
                   rowKey="id"
                 />
               </Card>
@@ -176,6 +224,7 @@ export function ReportsPage() {
               <Descriptions.Item label="时间">{formatDateTime(selectedEvent.occurredAt)}</Descriptions.Item>
               <Descriptions.Item label="Environment">{selectedEvent.environment || "-"}</Descriptions.Item>
               <Descriptions.Item label="Release">{selectedEvent.release || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Dist">{selectedEvent.dist || resolvedEvent?.dist || "-"}</Descriptions.Item>
             </Descriptions>
             <Card title="Tags">
               <JsonViewer value={safeParseJson(selectedEvent.tagsJson)} />
@@ -188,6 +237,32 @@ export function ReportsPage() {
                 <pre className="json-viewer">{resolvedEvent.resolvedStack}</pre>
               ) : (
                 <Empty description="暂无还原后的堆栈" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              )}
+            </Card>
+            <Card title="Resolved Frames">
+              {resolvedEvent?.frames?.length ? (
+                <Space className="page-stack" direction="vertical" size={12}>
+                  {resolvedEvent.frames.map((frame, index) => (
+                    <Card
+                      key={`${frame.rawLine || "frame"}-${index}`}
+                      size="small"
+                      title={buildFrameTitle(frame, index)}
+                    >
+                      <Space className="page-stack" direction="vertical" size={8}>
+                        <Typography.Text type="secondary">
+                          {frame.artifact || frame.generatedFile || "未匹配到 artifact"}
+                        </Typography.Text>
+                        {frame.sourceContext?.length ? (
+                          <pre className="json-viewer">{formatSourceContext(frame)}</pre>
+                        ) : (
+                          <Typography.Text type="secondary">暂无源码上下文</Typography.Text>
+                        )}
+                      </Space>
+                    </Card>
+                  ))}
+                </Space>
+              ) : (
+                <Empty description="暂无逐帧还原数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
               )}
             </Card>
           </Space>
@@ -244,7 +319,15 @@ export function ReportsPage() {
                   }
                 ]}
                 dataSource={issueEvents}
-                pagination={false}
+                pagination={{
+                  current: issueEventsPageNum,
+                  onChange: (page, pageSize) => {
+                    void inspectIssue(selectedIssue, page, pageSize)
+                  },
+                  pageSize: issueEventsPageSize,
+                  showSizeChanger: true,
+                  total: issueEventsTotal
+                }}
                 rowKey="id"
                 size="small"
               />
@@ -254,4 +337,20 @@ export function ReportsPage() {
       </Drawer>
     </Space>
   )
+}
+
+function buildFrameTitle(frame: SourceMapFrame, index: number) {
+  if (frame.originalSource && frame.originalLine && frame.originalColumn) {
+    return `#${index + 1} ${frame.originalSource}:${frame.originalLine}:${frame.originalColumn}`
+  }
+  if (frame.generatedFile && frame.generatedLine && frame.generatedColumn) {
+    return `#${index + 1} ${frame.generatedFile}:${frame.generatedLine}:${frame.generatedColumn}`
+  }
+  return `#${index + 1} Frame`
+}
+
+function formatSourceContext(frame: SourceMapFrame) {
+  return (frame.sourceContext || [])
+    .map(line => `${line.focus ? ">" : " "} ${String(line.lineNumber).padStart(4, " ")} | ${line.content}`)
+    .join("\n")
 }

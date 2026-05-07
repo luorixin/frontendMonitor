@@ -33,9 +33,21 @@ type AlertFormValues = {
 export function ManagePage() {
   const { currentProjectId, dateRange, reloadProjects } = useProject()
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectsTotal, setProjectsTotal] = useState(0)
+  const [projectsPageNum, setProjectsPageNum] = useState(1)
+  const [projectsPageSize, setProjectsPageSize] = useState(20)
   const [rules, setRules] = useState<AlertRule[]>([])
+  const [rulesTotal, setRulesTotal] = useState(0)
+  const [rulesPageNum, setRulesPageNum] = useState(1)
+  const [rulesPageSize, setRulesPageSize] = useState(20)
   const [records, setRecords] = useState<AlertRecord[]>([])
+  const [recordsTotal, setRecordsTotal] = useState(0)
+  const [recordsPageNum, setRecordsPageNum] = useState(1)
+  const [recordsPageSize, setRecordsPageSize] = useState(20)
   const [replays, setReplays] = useState<ReplaySession[]>([])
+  const [replaysTotal, setReplaysTotal] = useState(0)
+  const [replaysPageNum, setReplaysPageNum] = useState(1)
+  const [replaysPageSize, setReplaysPageSize] = useState(20)
   const [selectedReplay, setSelectedReplay] = useState<ReplaySession | null>(null)
   const [alertTest, setAlertTest] = useState<AlertEvaluation | null>(null)
   const [error, setError] = useState("")
@@ -44,28 +56,43 @@ export function ManagePage() {
   const [alertForm] = Form.useForm<AlertFormValues>()
 
   async function loadProjectsTab() {
-    const table = await listProjects(buildParams({ pageNum: 1, pageSize: 100 }))
+    const table = await listProjects(buildParams({ pageNum: projectsPageNum, pageSize: projectsPageSize }))
     setProjects(table.rows)
+    setProjectsTotal(table.total)
   }
 
   async function loadAlertsTab() {
     if (!currentProjectId) return
-    const params = buildParams({
+    const ruleParams = buildParams({
       endTime: toBackendDateTime(dateRange[1]),
-      pageNum: 1,
-      pageSize: 50,
+      pageNum: rulesPageNum,
+      pageSize: rulesPageSize,
       projectId: currentProjectId,
       startTime: toBackendDateTime(dateRange[0])
     })
-    const [ruleTable, recordTable] = await Promise.all([listAlertRules(params), listAlertRecords(params)])
+    const recordParams = buildParams({
+      endTime: toBackendDateTime(dateRange[1]),
+      pageNum: recordsPageNum,
+      pageSize: recordsPageSize,
+      projectId: currentProjectId,
+      startTime: toBackendDateTime(dateRange[0])
+    })
+    const [ruleTable, recordTable] = await Promise.all([listAlertRules(ruleParams), listAlertRecords(recordParams)])
     setRules(ruleTable.rows)
+    setRulesTotal(ruleTable.total)
     setRecords(recordTable.rows)
+    setRecordsTotal(recordTable.total)
   }
 
   async function loadReplayTab() {
     if (!currentProjectId) return
-    const table = await listReplays(buildParams({ pageNum: 1, pageSize: 50, projectId: currentProjectId }))
+    const table = await listReplays(buildParams({
+      pageNum: replaysPageNum,
+      pageSize: replaysPageSize,
+      projectId: currentProjectId
+    }))
     setReplays(table.rows)
+    setReplaysTotal(table.total)
   }
 
   async function loadAll() {
@@ -81,8 +108,25 @@ export function ManagePage() {
   }
 
   useEffect(() => {
-    void loadAll()
+    setRulesPageNum(1)
+    setRecordsPageNum(1)
+    setReplaysPageNum(1)
   }, [currentProjectId, dateRange])
+
+  useEffect(() => {
+    void loadAll()
+  }, [
+    currentProjectId,
+    dateRange,
+    projectsPageNum,
+    projectsPageSize,
+    rulesPageNum,
+    rulesPageSize,
+    recordsPageNum,
+    recordsPageSize,
+    replaysPageNum,
+    replaysPageSize
+  ])
 
   async function onCreateProject(values: ProjectFormValues) {
     await createProject({
@@ -162,6 +206,16 @@ export function ManagePage() {
                     ]}
                     dataSource={projects}
                     loading={loading}
+                    pagination={{
+                      current: projectsPageNum,
+                      onChange: (page, size) => {
+                        setProjectsPageNum(page)
+                        setProjectsPageSize(size)
+                      },
+                      pageSize: projectsPageSize,
+                      showSizeChanger: true,
+                      total: projectsTotal
+                    }}
                     rowKey="id"
                   />
                 </Card>
@@ -236,6 +290,16 @@ export function ManagePage() {
                       }
                     ]}
                     dataSource={rules}
+                    pagination={{
+                      current: rulesPageNum,
+                      onChange: (page, size) => {
+                        setRulesPageNum(page)
+                        setRulesPageSize(size)
+                      },
+                      pageSize: rulesPageSize,
+                      showSizeChanger: true,
+                      total: rulesTotal
+                    }}
                     rowKey="id"
                   />
                   {alertTest ? (
@@ -286,7 +350,16 @@ export function ManagePage() {
                       }
                     ]}
                     dataSource={records}
-                    pagination={false}
+                    pagination={{
+                      current: recordsPageNum,
+                      onChange: (page, size) => {
+                        setRecordsPageNum(page)
+                        setRecordsPageSize(size)
+                      },
+                      pageSize: recordsPageSize,
+                      showSizeChanger: true,
+                      total: recordsTotal
+                    }}
                     rowKey="id"
                     size="small"
                   />
@@ -324,6 +397,16 @@ export function ManagePage() {
                   ]}
                   dataSource={replays}
                   loading={loading}
+                  pagination={{
+                    current: replaysPageNum,
+                    onChange: (page, size) => {
+                      setReplaysPageNum(page)
+                      setReplaysPageSize(size)
+                    },
+                    pageSize: replaysPageSize,
+                    showSizeChanger: true,
+                    total: replaysTotal
+                  }}
                   rowKey="replayId"
                 />
               </Card>

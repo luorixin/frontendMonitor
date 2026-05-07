@@ -54,6 +54,7 @@ export type MonitorOptions = {
   appName: string
   appVersion?: string
   userId?: string
+  dist?: string
   sampleRate?: number
   batchSize?: number
   flushInterval?: number
@@ -88,6 +89,7 @@ export type ResolvedMonitorOptions = {
   appName: string
   appVersion?: string
   userId?: string
+  dist?: string
   sampleRate: number
   batchSize: number
   flushInterval: number
@@ -124,6 +126,7 @@ export type BasePayload = {
   appVersion?: string
   deviceId: string
   userId?: string
+  dist?: string
   sessionId: string
   pageId: string
   url: string

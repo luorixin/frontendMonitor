@@ -14,6 +14,9 @@ import com.monitor.system.mapper.monitor.MonitorProjectMapper;
 import com.monitor.system.mapper.monitor.MonitorSourceMapArtifactMapper;
 import com.monitor.system.service.monitor.IMonitorSourceMapService;
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -50,11 +53,13 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
   public MonitorSourceMapArtifactVo uploadSourceMap(
       Long projectId,
       String release,
+      String dist,
       String artifact,
       MultipartFile file
   ) {
     requireProject(projectId);
     String normalizedRelease = requireText(release, "monitor.errors.sourceMapReleaseRequired");
+    String normalizedDist = normalizeDist(dist);
     String normalizedArtifact = requireText(artifact, "monitor.errors.sourceMapArtifactRequired");
     if (file == null || file.isEmpty()) {
       throw new ServiceException(400, "monitor.errors.sourceMapFileRequired");
@@ -69,6 +74,7 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
     MonitorSourceMapArtifact existing = sourceMapArtifactMapper.selectByProjectReleaseArtifact(
         projectId,
         normalizedRelease,
+        normalizedDist,
         normalizedArtifact
     );
 
@@ -76,7 +82,9 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
       MonitorSourceMapArtifact created = new MonitorSourceMapArtifact();
       created.setProjectId(projectId);
       created.setRelease(normalizedRelease);
+      created.setDist(normalizedDist);
       created.setArtifact(normalizedArtifact);
+      created.setArtifactHash(hashArtifact(normalizedArtifact));
       created.setFileName(trimToNull(file.getOriginalFilename()));
       created.setFileSize(file.getSize());
       created.setSourceMapJson(sourceMapJson);
@@ -84,6 +92,8 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
       return toVo(created);
     }
 
+    existing.setDist(normalizedDist);
+    existing.setArtifactHash(hashArtifact(normalizedArtifact));
     existing.setFileName(trimToNull(file.getOriginalFilename()));
     existing.setFileSize(file.getSize());
     existing.setSourceMapJson(sourceMapJson);
@@ -92,11 +102,37 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
   }
 
   @Override
-  public List<MonitorSourceMapArtifact> selectArtifactsByRelease(Long projectId, String release) {
+  public List<MonitorSourceMapArtifactVo> uploadSourceMaps(
+      Long projectId,
+      String release,
+      String dist,
+      List<String> artifacts,
+      List<MultipartFile> files
+  ) {
+    if (files == null || files.isEmpty()) {
+      throw new ServiceException(400, "monitor.errors.sourceMapFileRequired");
+    }
+    if (artifacts == null || artifacts.isEmpty() || artifacts.size() != files.size()) {
+      throw new ServiceException(400, "monitor.errors.sourceMapBatchArtifactsInvalid");
+    }
+
+    List<MonitorSourceMapArtifactVo> created = new java.util.ArrayList<>();
+    for (int index = 0; index < files.size(); index++) {
+      created.add(uploadSourceMap(projectId, release, dist, artifacts.get(index), files.get(index)));
+    }
+    return created;
+  }
+
+  @Override
+  public List<MonitorSourceMapArtifact> selectArtifactsByReleaseDist(Long projectId, String release, String dist) {
     if (projectId == null || release == null || release.isBlank()) {
       return List.of();
     }
-    return sourceMapArtifactMapper.selectByProjectRelease(projectId, release.trim());
+    return sourceMapArtifactMapper.selectByProjectReleaseDist(
+        projectId,
+        release.trim(),
+        normalizeDist(dist)
+    );
   }
 
   private MonitorProject requireProject(Long projectId) {
@@ -136,6 +172,7 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
     vo.setId(artifact.getId());
     vo.setProjectId(artifact.getProjectId());
     vo.setRelease(artifact.getRelease());
+    vo.setDist(trimToNull(artifact.getDist()));
     vo.setArtifact(artifact.getArtifact());
     vo.setFileName(artifact.getFileName());
     vo.setFileSize(artifact.getFileSize());
@@ -158,5 +195,19 @@ public class MonitorSourceMapServiceImpl implements IMonitorSourceMapService {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private String normalizeDist(String dist) {
+    String normalized = trimToNull(dist);
+    return normalized == null ? "" : normalized;
+  }
+
+  private String hashArtifact(String artifact) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of().formatHex(digest.digest(artifact.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 digest is unavailable", e);
+    }
   }
 }

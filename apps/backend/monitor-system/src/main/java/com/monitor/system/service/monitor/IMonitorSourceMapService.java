@@ -12,9 +12,18 @@ public interface IMonitorSourceMapService {
   MonitorSourceMapArtifactVo uploadSourceMap(
       Long projectId,
       String release,
+      String dist,
       String artifact,
       MultipartFile file
   );
 
-  List<MonitorSourceMapArtifact> selectArtifactsByRelease(Long projectId, String release);
+  List<MonitorSourceMapArtifactVo> uploadSourceMaps(
+      Long projectId,
+      String release,
+      String dist,
+      List<String> artifacts,
+      List<MultipartFile> files
+  );
+
+  List<MonitorSourceMapArtifact> selectArtifactsByReleaseDist(Long projectId, String release, String dist);
 }

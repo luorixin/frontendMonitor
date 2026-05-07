@@ -11,9 +11,9 @@ const DEFAULT_CAPTURE = {
   fetchError: true,
   jsError: true,
   pageView: true,
-  performance: false,
+  performance: true,
   promiseRejection: true,
-  requestPerformance: false,
+  requestPerformance: true,
   resourceError: true,
   routeChange: true,
   xhrError: true
@@ -54,6 +54,7 @@ export const DEFAULT_OPTIONS: Omit<
 	  sampleRate: 1,
 	  scopeError: false,
 	  contexts: {},
+	  dist: undefined,
 	  environment: undefined,
 	  release: undefined,
 	  sessionReplay: { ...DEFAULT_SESSION_REPLAY },
@@ -107,6 +108,7 @@ export function normalizeOptions(
 	      options.localizationKey ?? DEFAULT_OPTIONS.localizationKey,
 	    localizationOverflow: options.localizationOverflow ?? DEFAULT_OPTIONS.localizationOverflow,
 	    contexts: { ...(options.contexts ?? DEFAULT_OPTIONS.contexts) },
+	    dist: options.dist ?? DEFAULT_OPTIONS.dist,
 	    environment: options.environment ?? DEFAULT_OPTIONS.environment,
 	    maxBreadcrumbs: Math.max(
 	      0,

@@ -386,6 +386,137 @@ class MonitorModuleIntegrationTest {
   }
 
   @Test
+  void shouldBatchUploadSourceMapsByDistAndReturnSourceContext() throws Exception {
+    Map<String, Object> base = basePayload(
+        "http://localhost:4173/source-map-dist",
+        "Source Map Dist",
+        "device-smd",
+        "session-smd",
+        "page-smd"
+    );
+    base.put("release", "1.2.3");
+    base.put("dist", "web-42");
+
+    Map<String, Object> payload = Map.of(
+        "base", base,
+        "events", List.of(
+            Map.of(
+                "type", "js_error",
+                "message", "minified dist boom",
+                "stack", "Error: minified dist boom\n    at boom (http://localhost:4173/assets/app.min.js:1:1)",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/source-map-dist"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .header("Origin", "http://localhost:4173")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk());
+
+    String eventList = mockMvc.perform(get("/api/v1/monitor/events")
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+
+    Long eventId = objectMapper.readTree(eventList).get("rows").get(0).get("id").asLong();
+
+    MockMultipartFile wrongDistSourceMap = new MockMultipartFile(
+        "files",
+        "app.min.js.map",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+        {
+          "version": 3,
+          "file": "app.min.js",
+          "sources": ["src/wrong-dist.ts"],
+          "sourcesContent": ["throw new Error('wrong-dist')"],
+          "names": ["boom"],
+          "mappings": "AAAAA"
+        }
+        """.getBytes()
+    );
+
+    mockMvc.perform(multipart("/api/v1/monitor/source-maps/batch")
+            .file(wrongDistSourceMap)
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .param("dist", "web-41")
+            .param("artifacts", "/assets/app.min.js")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].dist").value("web-41"));
+
+    mockMvc.perform(get("/api/v1/monitor/events/" + eventId + "/resolved")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.applied").value(false));
+
+    MockMultipartFile appSourceMap = new MockMultipartFile(
+        "files",
+        "app.min.js.map",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+        {
+          "version": 3,
+          "file": "app.min.js",
+          "sources": ["src/app.ts"],
+          "sourcesContent": ["const version = 'web-42';\\nthrow new Error('boom');\\nconsole.log(version);"],
+          "names": ["boom"],
+          "mappings": "AAAAA"
+        }
+        """.getBytes()
+    );
+    MockMultipartFile vendorSourceMap = new MockMultipartFile(
+        "files",
+        "vendor.min.js.map",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+        {
+          "version": 3,
+          "file": "vendor.min.js",
+          "sources": ["src/vendor.ts"],
+          "sourcesContent": ["export const vendor = 'ok';"],
+          "names": ["vendor"],
+          "mappings": "AAAAA"
+        }
+        """.getBytes()
+    );
+
+    mockMvc.perform(multipart("/api/v1/monitor/source-maps/batch")
+            .file(appSourceMap)
+            .file(vendorSourceMap)
+            .param("projectId", "1")
+            .param("release", "1.2.3")
+            .param("dist", "web-42")
+            .param("artifacts", "/assets/app.min.js", "/assets/vendor.min.js")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(2))
+        .andExpect(jsonPath("$.data[0].dist").value("web-42"))
+        .andExpect(jsonPath("$.data[1].dist").value("web-42"));
+
+    mockMvc.perform(get("/api/v1/monitor/events/" + eventId + "/resolved")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.applied").value(true))
+        .andExpect(jsonPath("$.data.release").value("1.2.3"))
+        .andExpect(jsonPath("$.data.dist").value("web-42"))
+        .andExpect(jsonPath("$.data.frames[0].resolved").value(true))
+        .andExpect(jsonPath("$.data.frames[0].artifact").value("/assets/app.min.js"))
+        .andExpect(jsonPath("$.data.frames[0].sourceContext[0].lineNumber").value(1))
+        .andExpect(jsonPath("$.data.frames[0].sourceContext[0].content").value("const version = 'web-42';"))
+        .andExpect(jsonPath("$.data.frames[0].sourceContext[0].focus").value(true))
+        .andExpect(jsonPath("$.data.resolvedStack").value(org.hamcrest.Matchers.containsString("src/app.ts:1:1")));
+  }
+
+  @Test
   void shouldRejectCollectForUnknownProjectKey() throws Exception {
     Map<String, Object> payload = Map.of(
         "base", basePayload("http://localhost/demo", "Demo", "device-1", "session-1", "page-1"),
