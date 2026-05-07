@@ -3,6 +3,7 @@ import type {
   Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
+  MonitorIntegration,
   MonitorEvent,
   NetworkStatus,
   ReplayChunkPayload,
@@ -45,8 +46,11 @@ export type MonitorState = {
   breadcrumbs: Breadcrumb[]
   contexts: Record<string, unknown>
   initialized: boolean
+  integrations: MonitorIntegration[]
   lastClickAt: number
+  localizationStorePromise: Promise<void> | null
   networkStatus: NetworkStatus
+  offlineStorePromise: Promise<void> | null
   options: ResolvedMonitorOptions | null
   originalFetch: typeof window.fetch | null
   originalPushState: History["pushState"] | null
@@ -67,7 +71,9 @@ export type MonitorState = {
   retryTimer: ReturnType<typeof setTimeout> | null
   sessionId: string
   softNavigation: SoftNavigationState
+  spanId: string | null
   tags: Record<string, string>
+  traceId: string | null
 }
 
 export const state: MonitorState = {
@@ -84,8 +90,11 @@ export const state: MonitorState = {
   flushPromise: null,
   flushTimer: null,
   initialized: false,
+  integrations: [],
   lastClickAt: 0,
+  localizationStorePromise: null,
   networkStatus: "online",
+  offlineStorePromise: null,
   options: null,
   originalFetch: null,
   originalPushState: null,
@@ -117,7 +126,9 @@ export const state: MonitorState = {
     toRoute: "",
     trigger: ""
   },
-  tags: {}
+  spanId: null,
+  tags: {},
+  traceId: null
 }
 
 export function addCleanup(cleanup: CleanupFn): void {
@@ -147,8 +158,11 @@ export function resetState(): void {
   state.flushPromise = null
   state.flushTimer = clearTimer(state.flushTimer)
   state.initialized = false
+  state.integrations = []
   state.lastClickAt = 0
+  state.localizationStorePromise = null
   state.networkStatus = "online"
+  state.offlineStorePromise = null
   state.options = null
   state.originalFetch = null
   state.originalPushState = null
@@ -180,5 +194,7 @@ export function resetState(): void {
     toRoute: "",
     trigger: ""
   }
+  state.spanId = null
   state.tags = {}
+  state.traceId = null
 }

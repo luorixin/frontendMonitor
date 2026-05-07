@@ -26,14 +26,27 @@ export function registerAfterSend(handler: AfterSendHandler): void {
 export function runBeforePushEventHooks(
   event: MonitorEvent
 ): MonitorEvent | MonitorEvent[] | false {
-  let current: MonitorEvent | MonitorEvent[] | false = event
+  let currentEvents: MonitorEvent[] = [event]
 
   for (const hook of state.beforePushEventHooks) {
-    if (current === false) return false
-    current = hook(current as MonitorEvent)
+    const nextEvents: MonitorEvent[] = []
+
+    for (const currentEvent of currentEvents) {
+      const result = hook(currentEvent)
+      if (result === false) continue
+
+      if (Array.isArray(result)) {
+        nextEvents.push(...result.filter(isMonitorEvent))
+      } else {
+        nextEvents.push(result)
+      }
+    }
+
+    if (nextEvents.length === 0) return false
+    currentEvents = nextEvents
   }
 
-  return current
+  return currentEvents.length === 1 ? currentEvents[0] : currentEvents
 }
 
 export function runBeforeSendHooks(
@@ -59,5 +72,10 @@ export function runAfterSendHooks(
 }
 
 function sanitizePayload(payload: MonitorPayload): MonitorPayload {
-  return sanitizeValue(payload) as MonitorPayload
+  if (state.options?.sanitize.enabled === false) return payload
+  return sanitizeValue(payload, undefined, state.options?.sanitize) as MonitorPayload
+}
+
+function isMonitorEvent(value: unknown): value is MonitorEvent {
+  return typeof value === "object" && value !== null && "type" in value
 }

@@ -26,7 +26,7 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
   }
 
   if (state.networkStatus === "offline") {
-    persistOfflineEvents([event])
+    void persistOfflineEvents([event])
     debugLog("drop event: offline")
     return
   }
@@ -100,22 +100,25 @@ async function flushQueueInternal(options?: {
   }
 
   if (state.options.localization) {
-    const persisted = persistLocalizedPayload(processedPayload)
+    const persisted = await persistLocalizedPayload(processedPayload)
     debugLog(persisted ? "persist localized payload" : "persist localized failed")
     return
   }
 
   const result = await sendPayload(state.options.dsn, processedPayload, {
+    compressionAlgorithm: state.options.compression.algorithm,
+    compression: state.options.compression.eventPayloads,
     maxPayloadBytes: state.options.maxPayloadBytes,
     preferBeacon: options?.preferBeacon,
-    timeout: state.options.timeout
+    timeout: state.options.timeout,
+    transport: state.options.transport
   })
 
   runAfterSendHooks(result, processedPayload)
 
   if (!result.success) {
     if (result.reason !== "payload_too_large") {
-      persistOfflinePayload(processedPayload)
+      await persistOfflinePayload(processedPayload)
     }
     debugLog("send failed", result)
     return

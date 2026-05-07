@@ -5,7 +5,7 @@ coverage
 *.tsbuildinfo
 .omx
 .pnpm-store/
-*/.nvm/
+**/.nvm/
 **/.output/
 **/.nuxt/
 **/dist/

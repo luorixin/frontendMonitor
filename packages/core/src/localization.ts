@@ -1,76 +1,95 @@
 import { state } from "./context"
+import {
+  appendAsyncQueue,
+  clearAsyncQueue,
+  readAsyncQueue,
+  writeAsyncQueue
+} from "./queueStore"
 import { sendPayload } from "./transport"
 import type { MonitorPayload } from "./types"
 
 export async function sendLocal(): Promise<void> {
   if (!state.options) return
 
-  const localizedPayloads = readLocalizedPayloads()
-  if (localizedPayloads.length === 0) return
+  await runLocalizationStoreOperation(async () => {
+    const localizedPayloads = await readLocalizedPayloads()
+    if (localizedPayloads.length === 0) return
 
-  const remainingPayloads: MonitorPayload[] = []
+    const remainingPayloads: MonitorPayload[] = []
 
-  for (const payload of localizedPayloads) {
-    const result = await sendPayload(state.options.dsn, payload)
-    if (!result.success) {
-      remainingPayloads.push(payload)
+    for (const payload of localizedPayloads) {
+      const result = await sendPayload(state.options!.dsn, payload, {
+        compressionAlgorithm: state.options!.compression.algorithm,
+        compression: state.options!.compression.eventPayloads,
+        maxPayloadBytes: state.options!.maxPayloadBytes,
+        timeout: state.options!.timeout,
+        transport: state.options!.transport
+      })
+      if (!result.success) {
+        remainingPayloads.push(payload)
+      }
     }
-  }
 
-  writeLocalizedPayloads(remainingPayloads)
+    await writeLocalizedPayloads(remainingPayloads)
+  })
 }
 
-export function persistLocalizedPayload(payload: MonitorPayload): boolean {
-  const localizedPayloads = readLocalizedPayloads()
-  localizedPayloads.push(payload)
-  return writeLocalizedPayloads(localizedPayloads)
+export function persistLocalizedPayload(
+  payload: MonitorPayload
+): Promise<boolean> {
+  if (!state.options) return Promise.resolve(false)
+  return runLocalizationStoreOperation(() =>
+    appendAsyncQueue(payload, {
+      key: state.options!.localizationKey,
+      onWriteError: normalizeLocalizationError,
+      validate: isMonitorPayload
+    })
+  )
 }
 
 export function clearLocalizedPayloads(): void {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return
-  storage.removeItem(state.options.localizationKey)
+  if (!state.options) return
+  void runLocalizationStoreOperation(() =>
+    clearAsyncQueue(state.options!.localizationKey)
+  )
 }
 
-function readLocalizedPayloads(): MonitorPayload[] {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return []
-
-  const raw = storage.getItem(state.options.localizationKey)
-  if (!raw) return []
-
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as MonitorPayload[]) : []
-  } catch {
-    return []
-  }
+function readLocalizedPayloads(): Promise<MonitorPayload[]> {
+  if (!state.options) return Promise.resolve([])
+  return readAsyncQueue({
+    key: state.options.localizationKey,
+    validate: isMonitorPayload
+  })
 }
 
-function writeLocalizedPayloads(payloads: MonitorPayload[]): boolean {
-  const storage = getLocalStorage()
-  if (!storage || !state.options) return false
-
-  try {
-    if (payloads.length === 0) {
-      storage.removeItem(state.options.localizationKey)
-      return true
-    }
-
-    storage.setItem(state.options.localizationKey, JSON.stringify(payloads))
-    return true
-  } catch (error) {
-    const normalizedError =
-      error instanceof Error ? error : new Error("Failed to write localization")
-    state.options.localizationOverflow?.(normalizedError)
-    return false
-  }
+function writeLocalizedPayloads(payloads: MonitorPayload[]): Promise<boolean> {
+  if (!state.options) return Promise.resolve(false)
+  return writeAsyncQueue(payloads, {
+    key: state.options.localizationKey,
+    onWriteError: normalizeLocalizationError,
+    validate: isMonitorPayload
+  })
 }
 
-function getLocalStorage(): Storage | null {
-  try {
-    return window.localStorage
-  } catch {
-    return null
-  }
+function runLocalizationStoreOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = state.localizationStorePromise ?? Promise.resolve()
+  const result = previous.catch(() => undefined).then(operation)
+  state.localizationStorePromise = result.then(
+    () => undefined,
+    () => undefined
+  )
+  return result
+}
+
+function normalizeLocalizationError(error: Error): void {
+  state.options?.localizationOverflow?.(error)
+}
+
+function isMonitorPayload(value: unknown): value is MonitorPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "base" in value &&
+    "events" in value
+  )
 }

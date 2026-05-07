@@ -26,6 +26,11 @@ export function createLocalBackendOptions(): MonitorOptions {
     dist: DEFAULT_DIST,
     environment: DEFAULT_ENVIRONMENT,
     release: DEFAULT_RELEASE,
+    trace: {
+      enabled: true,
+      propagateTraceparent: true,
+      sampleRate: 1
+    },
     sessionReplay: {
       enabled: true,
       flushInterval: 2000,

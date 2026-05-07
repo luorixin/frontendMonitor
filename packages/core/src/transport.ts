@@ -3,6 +3,7 @@ import type {
   SendPayloadOptions,
   TransportResult
 } from "./types"
+import { encodeJSONRequestBody } from "./compression"
 import { safeStringify } from "./utils"
 
 const BEACON_LIMIT = 60 * 1024
@@ -21,6 +22,10 @@ export async function sendPayload(
       success: false,
       transport: "xhr"
     }
+  }
+
+  if (options.transport?.send) {
+    return options.transport.send(dsn, payload, options)
   }
 
   if (options.preferBeacon) {
@@ -42,6 +47,25 @@ export async function sendPayload(
     if (beaconResult.success) {
       return beaconResult
     }
+  }
+
+  if (!options.compression) {
+    return sendByXHR(dsn, body, options.timeout)
+  }
+
+  const encodedBody = await encodeJSONRequestBody(
+    body,
+    options.compressionAlgorithm
+  )
+  const compressedResult = await sendByXHR(
+    dsn,
+    encodedBody.body,
+    options.timeout,
+    encodedBody.contentEncoding
+  )
+
+  if (compressedResult.success || !encodedBody.contentEncoding) {
+    return compressedResult
   }
 
   return sendByXHR(dsn, body, options.timeout)
@@ -93,8 +117,9 @@ function trySendImage(dsn: string, body: string): Promise<TransportResult> {
 
 function sendByXHR(
   dsn: string,
-  body: string,
-  timeout?: number
+  body: Blob | string,
+  timeout?: number,
+  contentEncoding?: string
 ): Promise<TransportResult> {
   if (typeof XMLHttpRequest !== "function") {
     return Promise.resolve({
@@ -108,6 +133,9 @@ function sendByXHR(
 
     xhr.open("POST", dsn, true)
     xhr.setRequestHeader("content-type", "application/json")
+    if (contentEncoding) {
+      xhr.setRequestHeader("content-encoding", contentEncoding)
+    }
     if (timeout && timeout > 0) {
       xhr.timeout = timeout
     }

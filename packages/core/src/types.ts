@@ -15,6 +15,53 @@ export type LocalizationOverflowHandler = (error: Error) => void
 
 export type NetworkStatus = "online" | "offline"
 
+export type SanitizeOptions = {
+  enabled?: boolean
+  redactValue?: string
+  sensitiveKeys?: string[]
+  textPatterns?: RegExp[]
+}
+
+export type TraceOptions = {
+  enabled?: boolean
+  propagateTraceparent?: boolean
+  sampleRate?: number
+}
+
+export type CompressionAlgorithm = "gzip"
+
+export type CompressionOptions = {
+  algorithm?: CompressionAlgorithm
+  eventPayloads?: boolean
+  sessionReplay?: boolean
+}
+
+export type TransportOptions = {
+  send?: (
+    dsn: string,
+    payload: MonitorPayload,
+    options: SendPayloadOptions
+  ) => Promise<TransportResult> | TransportResult
+}
+
+export type MonitorIntegrationCleanup = () => void
+
+export type MonitorIntegrationContext = {
+  addCleanup: (cleanup: MonitorIntegrationCleanup) => void
+  emit: (event: MonitorEvent, flush?: boolean) => void
+  options: Readonly<ResolvedMonitorOptions>
+}
+
+export type MonitorIntegration = {
+  name: string
+  setup: (
+    context: MonitorIntegrationContext
+  ) =>
+    | void
+    | MonitorIntegrationCleanup
+    | MonitorIntegrationCleanup[]
+}
+
 export type Breadcrumb = {
   category?: string
   data?: Record<string, unknown>
@@ -78,7 +125,12 @@ export type MonitorOptions = {
   tags?: Record<string, string>
   contexts?: Record<string, unknown>
   sessionReplay?: boolean | SessionReplayOptions
+  sanitize?: SanitizeOptions
   scopeError?: boolean
+  trace?: TraceOptions
+  compression?: boolean | CompressionOptions
+  transport?: TransportOptions
+  integrations?: MonitorIntegration[]
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
   afterSend?: AfterSendHandler
@@ -115,7 +167,12 @@ export type ResolvedMonitorOptions = {
   sessionReplay: Required<SessionReplayOptions> & {
     enabled: boolean
   }
+  sanitize: Required<SanitizeOptions>
   scopeError: boolean
+  trace: Required<TraceOptions>
+  compression: Required<CompressionOptions>
+  transport?: TransportOptions
+  integrations: MonitorIntegration[]
   beforeSend?: BeforeSendHandler
   beforePushEvent?: BeforePushEventHandler
   afterSend?: AfterSendHandler
@@ -339,7 +396,10 @@ export type TransportResult = {
 }
 
 export type SendPayloadOptions = {
+  compressionAlgorithm?: CompressionAlgorithm
+  compression?: boolean
   maxPayloadBytes?: number
   preferBeacon?: boolean
   timeout?: number
+  transport?: TransportOptions
 }

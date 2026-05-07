@@ -19,24 +19,34 @@ const SENSITIVE_KEYS = [
   "refresh_token",
   "refreshToken",
   "token"
-]
+].map(key => key.toLowerCase())
 
 const PHONE_PATTERN = /(?<!\d)(1[3-9]\d{9})(?!\d)/g
 const ID_CARD_PATTERN =
   /(?<![0-9A-Za-z])((?:\d{17}[\dXx])|(?:\d{15}))(?![0-9A-Za-z])/g
 const BEARER_PATTERN = /(Bearer\s+)[A-Za-z0-9\-._~+/]+=*/gi
 
-export function sanitizeValue(value: unknown, parentKey?: string): unknown {
-  if (isSensitiveKey(parentKey)) {
-    return redactScalar(value)
+export type SanitizeConfig = {
+  redactValue?: string
+  sensitiveKeys?: string[]
+  textPatterns?: RegExp[]
+}
+
+export function sanitizeValue(
+  value: unknown,
+  parentKey?: string,
+  config: SanitizeConfig = {}
+): unknown {
+  if (isSensitiveKey(parentKey, config)) {
+    return redactScalar(value, config)
   }
 
   if (typeof value === "string") {
-    return redactSensitiveText(value)
+    return redactSensitiveText(value, config)
   }
 
   if (Array.isArray(value)) {
-    return value.map(item => sanitizeValue(item))
+    return value.map(item => sanitizeValue(item, undefined, config))
   }
 
   if (!value || typeof value !== "object") {
@@ -50,20 +60,27 @@ export function sanitizeValue(value: unknown, parentKey?: string): unknown {
   const sanitized: Record<string, unknown> = {}
 
   for (const [key, currentValue] of Object.entries(value)) {
-    sanitized[key] = sanitizeValue(currentValue, key)
+    sanitized[key] = sanitizeValue(currentValue, key, config)
   }
 
   return sanitized
 }
 
-export function redactSensitiveText(input: string): string {
-  let sanitized = sanitizeUrlLikeString(input)
-  sanitized = sanitized.replace(BEARER_PATTERN, `$1${REDACTED}`)
+export function redactSensitiveText(
+  input: string,
+  config: SanitizeConfig = {}
+): string {
+  const redactValue = config.redactValue ?? REDACTED
+  let sanitized = sanitizeUrlLikeString(input, config)
+  sanitized = sanitized.replace(BEARER_PATTERN, `$1${redactValue}`)
+  for (const pattern of config.textPatterns ?? []) {
+    sanitized = sanitized.replace(pattern, redactValue)
+  }
   sanitized = sanitized.replace(PHONE_PATTERN, (_match, phone: string) => {
     return `${phone.slice(0, 3)}****${phone.slice(-4)}`
   })
   sanitized = sanitized.replace(ID_CARD_PATTERN, (idCard: string) => {
-    if (idCard.length <= 8) return REDACTED
+    if (idCard.length <= 8) return redactValue
     return `${idCard.slice(0, 3)}********${idCard.slice(-4)}`
   })
 
@@ -74,7 +91,7 @@ export function getRedactedInputText(): string {
   return REDACTED_INPUT
 }
 
-function sanitizeUrlLikeString(input: string): string {
+function sanitizeUrlLikeString(input: string, config: SanitizeConfig): string {
   if (!looksLikeUrl(input)) {
     return input
   }
@@ -83,8 +100,8 @@ function sanitizeUrlLikeString(input: string): string {
     const url = new URL(input, "http://frontend-monitor.local")
 
     for (const key of Array.from(url.searchParams.keys())) {
-      if (isSensitiveKey(key)) {
-        url.searchParams.set(key, REDACTED)
+      if (isSensitiveKey(key, config)) {
+        url.searchParams.set(key, config.redactValue ?? REDACTED)
       }
     }
 
@@ -109,15 +126,18 @@ function looksLikeUrl(input: string): boolean {
   )
 }
 
-function isSensitiveKey(key?: string): boolean {
+function isSensitiveKey(key?: string, config: SanitizeConfig = {}): boolean {
   if (!key) return false
-  return SENSITIVE_KEYS.some(candidate => candidate === key)
+  const normalizedKey = key.toLowerCase()
+  return [...SENSITIVE_KEYS, ...(config.sensitiveKeys ?? []).map(item => item.toLowerCase())]
+    .some(candidate => candidate === normalizedKey)
 }
 
-function redactScalar(value: unknown): unknown {
-  if (typeof value === "string") return REDACTED
-  if (typeof value === "number") return REDACTED
-  if (typeof value === "boolean") return REDACTED
+function redactScalar(value: unknown, config: SanitizeConfig): unknown {
+  const redactValue = config.redactValue ?? REDACTED
+  if (typeof value === "string") return redactValue
+  if (typeof value === "number") return redactValue
+  if (typeof value === "boolean") return redactValue
   if (value == null) return value
-  return REDACTED
+  return redactValue
 }
