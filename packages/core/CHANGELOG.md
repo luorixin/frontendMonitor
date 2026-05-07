@@ -1,5 +1,11 @@
 # frontend-monitor-core
 
+## 2.1.0
+
+### Minor Changes
+
+- 69ada60: source map
+
 ## 2.0.0
 
 ### Major Changes
