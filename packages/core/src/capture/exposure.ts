@@ -1,9 +1,9 @@
-import { state } from "../context"
-import { enqueueEvent } from "../queue"
+import { state } from "../core/context"
+import { enqueueEvent } from "../pipeline/queue"
 import type {
   ExposureEventPayload,
   ExposureObserverOptions
-} from "../types"
+} from "../core/types"
 import {
   getRedactedInputText,
   now,

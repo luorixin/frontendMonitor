@@ -7,6 +7,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -15,6 +16,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./lite": {
+      "types": "./dist/lite.d.ts",
+      "import": "./dist/lite.js",
+      "default": "./dist/lite.js"
+    },
+    "./integrations/*": {
+      "types": "./dist/integrations/*.d.ts",
+      "import": "./dist/integrations/*.js",
+      "default": "./dist/integrations/*.js"
     }
   },
   "dependencies": {

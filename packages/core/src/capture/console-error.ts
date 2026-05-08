@@ -1,8 +1,8 @@
-import { state } from "../context"
-import { recordBreadcrumb } from "../breadcrumb"
-import { enqueueEvent } from "../queue"
-import { debugLog } from "../queue"
-import type { ConsoleErrorEventPayload } from "../types"
+import { state } from "../core/context"
+import { recordBreadcrumb } from "../pipeline/breadcrumb"
+import { enqueueEvent } from "../pipeline/queue"
+import { debugLog } from "../pipeline/queue"
+import type { ConsoleErrorEventPayload } from "../core/types"
 import { now, safeStringify } from "../utils"
 
 export function initConsoleErrorCapture(): Array<() => void> {

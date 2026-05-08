@@ -1,6 +1,6 @@
-import { state } from "../context"
-import { debugLog, enqueueEvent } from "../queue"
-import type { ErrorEventPayload, ResourceErrorEventPayload } from "../types"
+import { state } from "../core/context"
+import { debugLog, enqueueEvent } from "../pipeline/queue"
+import type { ErrorEventPayload, ResourceErrorEventPayload } from "../core/types"
 import { now, toSelector } from "../utils"
 
 const ERROR_SCOPE_WINDOW = 5000

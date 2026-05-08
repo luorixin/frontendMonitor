@@ -1,10 +1,10 @@
-import { state } from "../context"
-import { recordBreadcrumb } from "../breadcrumb"
-import { enqueueEvent } from "../queue"
+import { state } from "../core/context"
+import { recordBreadcrumb } from "../pipeline/breadcrumb"
+import { enqueueEvent } from "../pipeline/queue"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
-import type { RequestPerformanceEventPayload } from "../types"
-import { getTraceparent } from "../trace"
+import type { RequestPerformanceEventPayload } from "../core/types"
+import { getTraceparent } from "../core/trace"
 
 type XHRMeta = {
   method: string

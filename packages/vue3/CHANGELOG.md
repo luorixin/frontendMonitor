@@ -1,5 +1,11 @@
 # frontend-monitor-vue3
 
+## Unreleased
+
+### Minor Changes
+
+- Add `frontend-monitor-vue3/lite` plus `frontend-monitor-vue3/integrations/*` subpath exports for tree-shaking-friendly adapter usage.
+
 ## 2.1.0
 
 ### Minor Changes

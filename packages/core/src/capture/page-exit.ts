@@ -1,6 +1,6 @@
-import { addCleanup, state } from "../context"
-import { enqueueEvent, flushQueueOnExit } from "../queue"
-import { flushReplayQueue } from "../replay"
+import { addCleanup, state } from "../core/context"
+import { enqueueEvent, flushQueueOnExit } from "../pipeline/queue"
+import { flushReplayQueue } from "../pipeline/replay"
 import { createPageDwellEvent } from "./navigation"
 
 export function initPageExitCapture(): void {

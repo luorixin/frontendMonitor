@@ -1,4 +1,4 @@
-import { state } from "../context"
+import { state } from "../core/context"
 import { uuid } from "../utils"
 
 const DEVICE_COOKIE_KEY = "_frontend_monitor_device_id"

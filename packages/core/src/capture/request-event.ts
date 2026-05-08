@@ -1,4 +1,4 @@
-import type { RequestEventPayload } from "../types"
+import type { RequestEventPayload } from "../core/types"
 import { now } from "../utils"
 
 export function createRequestErrorEvent(input: {

@@ -1,5 +1,5 @@
-import { addCleanup, state } from "../context"
-import { debugLog, enqueueEvent } from "../queue"
+import { addCleanup, state } from "../core/context"
+import { debugLog, enqueueEvent } from "../pipeline/queue"
 import { createNavigationPerformanceEvent } from "./performance-navigation"
 import { initResourceObserver } from "./performance-resource"
 import {

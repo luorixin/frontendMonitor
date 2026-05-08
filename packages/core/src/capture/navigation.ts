@@ -1,9 +1,9 @@
-import { getCurrentRoute } from "../base"
-import { recordBreadcrumb } from "../breadcrumb"
+import { getCurrentRoute } from "../core/base"
+import { recordBreadcrumb } from "../pipeline/breadcrumb"
 import { flushSoftNavigationVitals, startSoftNavigationCapture } from "./performance"
-import { addCleanup, state } from "../context"
-import { debugLog, enqueueEvent } from "../queue"
-import type { PageDwellEventPayload, PageViewEventPayload, RouteChangeEventPayload } from "../types"
+import { addCleanup, state } from "../core/context"
+import { debugLog, enqueueEvent } from "../pipeline/queue"
+import type { PageDwellEventPayload, PageViewEventPayload, RouteChangeEventPayload } from "../core/types"
 import { now } from "../utils"
 
 export function initNavigationCapture(): void {

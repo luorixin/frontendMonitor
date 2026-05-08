@@ -1,7 +1,7 @@
-import { state, addCleanup } from "../context"
-import { recordBreadcrumb } from "../breadcrumb"
-import { enqueueEvent, debugLog } from "../queue"
-import type { ClickEventPayload } from "../types"
+import { state, addCleanup } from "../core/context"
+import { recordBreadcrumb } from "../pipeline/breadcrumb"
+import { enqueueEvent, debugLog } from "../pipeline/queue"
+import type { ClickEventPayload } from "../core/types"
 import {
   getRedactedInputText,
   now,

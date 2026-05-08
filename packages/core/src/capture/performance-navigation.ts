@@ -1,4 +1,4 @@
-import type { PerformanceEventPayload } from "../types"
+import type { PerformanceEventPayload } from "../core/types"
 import { now } from "../utils"
 
 export function createNavigationPerformanceEvent():

@@ -1,59 +1,48 @@
-import { getCurrentRoute } from "./base"
-import { normalizeOptions } from "./config"
 import {
   intersectionDisconnect,
   intersectionObserver,
-  intersectionUnobserve,
-  restoreExposureCapture
+  intersectionUnobserve
 } from "./capture/exposure"
-import { initDeviceId, resolveSessionId } from "./capture/identity"
-import { clearCleanups, resetState, state } from "./context"
-import {
-  ClickIntegration,
-  ConsoleErrorIntegration,
-  FetchIntegration,
-  JSErrorIntegration,
-  NavigationIntegration,
-  NetworkStatusIntegration,
-  PageExitIntegration,
-  PerformanceIntegration,
-  registerIntegration,
-  resolveIntegrations,
-  SessionReplayIntegration,
-  XHRIntegration
-} from "./integrations"
+import { ClickIntegration } from "./integrations/click"
+import { ConsoleErrorIntegration } from "./integrations/console-error"
+import { FetchIntegration } from "./integrations/fetch"
+import { JSErrorIntegration } from "./integrations/js-error"
+import { NavigationIntegration } from "./integrations/navigation"
+import { NetworkStatusIntegration } from "./integrations/network-status"
+import { PageExitIntegration } from "./integrations/page-exit"
+import { PerformanceIntegration } from "./integrations/performance"
+import { SessionReplayIntegration } from "./integrations/session-replay"
+import { XHRIntegration } from "./integrations/xhr"
 import {
   addIntegration,
-	  afterSend,
-	  addBreadcrumb,
-	  beforePushEvent,
-	  beforeSend,
-	  captureError,
-	  clearContext,
+  addBreadcrumb,
+  afterSend,
+  beforePushEvent,
+  beforeSend,
+  captureError,
+  clearContext,
   flush,
   flushSessionReplay,
   getReplayId,
   getOptions,
-  seedInitHooks,
-	  sendLocal,
-	  setContext,
-	  setDist,
-	  setEnvironment,
-	  setRelease,
-	  setTag,
-	  setUser,
+  sendLocal,
+  setContext,
+  setDist,
+  setEnvironment,
+  setRelease,
+  setTag,
+  setUser,
   stopReplay,
   track
-} from "./manual"
-import { clearQueue } from "./queue"
-import { initTraceContext } from "./trace"
-import { uuid } from "./utils"
-import type { MonitorOptions } from "./types"
+} from "./api/manual"
+import { resolveIntegrations } from "./api/default-integrations"
+import { destroyMonitor, initializeMonitor } from "./core/runtime"
+import type { MonitorOptions } from "./core/types"
 
 export type {
-	  AfterSendHandler,
-	  BasePayload,
-	  Breadcrumb,
+  AfterSendHandler,
+  BasePayload,
+  Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
   CaptureOptions,
@@ -79,33 +68,14 @@ export type {
   RouteChangeEventPayload,
   SessionReplayOptions,
   TransportResult
-} from "./types"
+} from "./core/types"
 
 export function init(options: MonitorOptions): void {
-  if (state.initialized) return
-  if (typeof window === "undefined" || typeof document === "undefined") return
-
-  state.options = normalizeOptions(options)
-  state.deviceId = initDeviceId()
-  state.sessionId = resolveSessionId()
-  state.pageId = uuid()
-  state.pageStartTime = Date.now()
-  state.currentRoute = getCurrentRoute()
-  state.initialized = true
-  initTraceContext()
-
-  seedInitHooks(options)
-  state.options.integrations = resolveIntegrations(options)
-  for (const integration of state.options.integrations) {
-    registerIntegration(integration)
-  }
+  initializeMonitor(options, resolveIntegrations(options))
 }
 
 export function destroy(): void {
-  clearQueue()
-  clearCleanups()
-  restoreExposureCapture()
-  resetState()
+  destroyMonitor()
 }
 
 export {
@@ -120,12 +90,12 @@ export {
   SessionReplayIntegration,
   XHRIntegration,
   addIntegration,
-	  afterSend,
-	  addBreadcrumb,
-	  beforePushEvent,
-	  beforeSend,
-	  captureError,
-	  clearContext,
+  addBreadcrumb,
+  afterSend,
+  beforePushEvent,
+  beforeSend,
+  captureError,
+  clearContext,
   flush,
   flushSessionReplay,
   getReplayId,
@@ -133,13 +103,13 @@ export {
   intersectionDisconnect,
   intersectionObserver,
   intersectionUnobserve,
-	  sendLocal,
-	  setContext,
-	  setDist,
-	  setEnvironment,
-	  setRelease,
-	  setTag,
-	  setUser,
+  sendLocal,
+  setContext,
+  setDist,
+  setEnvironment,
+  setRelease,
+  setTag,
+  setUser,
   stopReplay,
   track
 }

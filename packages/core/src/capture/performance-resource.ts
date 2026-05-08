@@ -1,6 +1,6 @@
-import { addCleanup, state } from "../context"
-import { enqueueEvent } from "../queue"
-import type { PerformanceEventPayload } from "../types"
+import { addCleanup, state } from "../core/context"
+import { enqueueEvent } from "../pipeline/queue"
+import type { PerformanceEventPayload } from "../core/types"
 import { now } from "../utils"
 
 export function initResourceObserver(): void {

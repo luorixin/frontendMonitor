@@ -1,5 +1,11 @@
 # frontend-monitor-nuxt3
 
+## Unreleased
+
+### Minor Changes
+
+- Add `frontend-monitor-nuxt3/lite`, `frontend-monitor-nuxt3/runtime/plugin-lite`, and `frontend-monitor-nuxt3/integrations/*` subpath exports for tree-shaking-friendly adapter usage.
+
 ## 2.1.0
 
 ### Minor Changes

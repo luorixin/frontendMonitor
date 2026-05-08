@@ -1868,7 +1868,7 @@
     "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
       "session_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
       "leader_thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
-      "updated_at": "2026-05-07T08:57:36.390Z",
+      "updated_at": "2026-05-07T09:04:33.599Z",
       "threads": {
         "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
           "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
@@ -1884,6 +1884,174 @@
           "first_seen_at": "2026-05-07T08:57:36.390Z",
           "last_seen_at": "2026-05-07T08:57:36.390Z",
           "last_turn_id": "019e01a4-803e-7312-ad9e-852fcc5ed4bf",
+          "turn_count": 1
+        },
+        "019e01aa-6b6b-7cb1-809c-380e6379e447": {
+          "thread_id": "019e01aa-6b6b-7cb1-809c-380e6379e447",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-07T09:04:33.599Z",
+          "last_seen_at": "2026-05-07T09:04:33.599Z",
+          "last_turn_id": "019e01aa-6b7a-7ae3-ba2a-b79f3f17b3b8",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e01b7-71d5-7873-ad08-c7993f3bfade": {
+      "session_id": "019e01b7-71d5-7873-ad08-c7993f3bfade",
+      "leader_thread_id": "019e01b7-71d5-7873-ad08-c7993f3bfade",
+      "updated_at": "2026-05-07T09:20:15.739Z",
+      "threads": {
+        "019e01b7-71d5-7873-ad08-c7993f3bfade": {
+          "thread_id": "019e01b7-71d5-7873-ad08-c7993f3bfade",
+          "kind": "leader",
+          "first_seen_at": "2026-05-07T09:18:37.846Z",
+          "last_seen_at": "2026-05-07T09:18:37.846Z",
+          "last_turn_id": "019e01b7-71e6-7783-96ee-b54e8260bd8a",
+          "turn_count": 1
+        },
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-07T09:20:15.739Z",
+          "last_seen_at": "2026-05-07T09:20:15.739Z",
+          "last_turn_id": "019e01b8-85bd-75a0-9e14-c9f330e569e0",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e01bf-8766-79b3-b39c-823a188c3679": {
+      "session_id": "019e01bf-8766-79b3-b39c-823a188c3679",
+      "leader_thread_id": "019e01bf-8766-79b3-b39c-823a188c3679",
+      "updated_at": "2026-05-07T09:26:50.970Z",
+      "threads": {
+        "019e01bf-8766-79b3-b39c-823a188c3679": {
+          "thread_id": "019e01bf-8766-79b3-b39c-823a188c3679",
+          "kind": "leader",
+          "first_seen_at": "2026-05-07T09:26:50.970Z",
+          "last_seen_at": "2026-05-07T09:26:50.970Z",
+          "last_turn_id": "019e01bf-8777-7090-9ee6-5f16d0314802",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e01da-ca4d-70f1-ae0a-a50920b04629": {
+      "session_id": "019e01da-ca4d-70f1-ae0a-a50920b04629",
+      "leader_thread_id": "019e01da-ca4d-70f1-ae0a-a50920b04629",
+      "updated_at": "2026-05-07T09:56:28.849Z",
+      "threads": {
+        "019e01da-ca4d-70f1-ae0a-a50920b04629": {
+          "thread_id": "019e01da-ca4d-70f1-ae0a-a50920b04629",
+          "kind": "leader",
+          "first_seen_at": "2026-05-07T09:56:28.849Z",
+          "last_seen_at": "2026-05-07T09:56:28.849Z",
+          "last_turn_id": "019e01da-ca5e-7e93-a15c-2a51365d22b2",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e0526-ee1b-7b42-af31-f35919bb43a5": {
+      "session_id": "019e0526-ee1b-7b42-af31-f35919bb43a5",
+      "leader_thread_id": "019e0526-ee1b-7b42-af31-f35919bb43a5",
+      "updated_at": "2026-05-08T01:20:52.519Z",
+      "threads": {
+        "019e0526-ee1b-7b42-af31-f35919bb43a5": {
+          "thread_id": "019e0526-ee1b-7b42-af31-f35919bb43a5",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T01:20:52.519Z",
+          "last_seen_at": "2026-05-08T01:20:52.519Z",
+          "last_turn_id": "019e0526-ee3e-75d0-afed-d7645b12d642",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e052e-85c2-7173-8f92-628e19d8b8f0": {
+      "session_id": "019e052e-85c2-7173-8f92-628e19d8b8f0",
+      "leader_thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+      "updated_at": "2026-05-08T01:27:44.390Z",
+      "threads": {
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T01:23:56.181Z",
+          "last_seen_at": "2026-05-08T01:23:56.181Z",
+          "last_turn_id": "019e0527-c4c9-7973-b4e2-e05b8873e923",
+          "turn_count": 1
+        },
+        "019e052e-85c2-7173-8f92-628e19d8b8f0": {
+          "thread_id": "019e052e-85c2-7173-8f92-628e19d8b8f0",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-08T01:27:44.390Z",
+          "last_seen_at": "2026-05-08T01:27:44.390Z",
+          "last_turn_id": "019e052e-85da-77e0-896e-4b60d7388e4a",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e0535-5d82-7a73-aaf3-37314a984edb": {
+      "session_id": "019e0535-5d82-7a73-aaf3-37314a984edb",
+      "leader_thread_id": "019e0535-5d82-7a73-aaf3-37314a984edb",
+      "updated_at": "2026-05-08T01:35:15.342Z",
+      "threads": {
+        "019e0535-5d82-7a73-aaf3-37314a984edb": {
+          "thread_id": "019e0535-5d82-7a73-aaf3-37314a984edb",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T01:35:15.011Z",
+          "last_seen_at": "2026-05-08T01:35:15.011Z",
+          "last_turn_id": "019e0535-5da0-7911-ad07-a7a4f6323c6f",
+          "turn_count": 1
+        },
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-08T01:35:15.342Z",
+          "last_seen_at": "2026-05-08T01:35:15.342Z",
+          "last_turn_id": "019e0534-0b29-78b3-8b7e-bdfcc074d04c",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e054c-b922-78f3-8818-360fd22363cf": {
+      "session_id": "019e054c-b922-78f3-8818-360fd22363cf",
+      "leader_thread_id": "019e054c-b922-78f3-8818-360fd22363cf",
+      "updated_at": "2026-05-08T02:00:43.682Z",
+      "threads": {
+        "019e054c-b922-78f3-8818-360fd22363cf": {
+          "thread_id": "019e054c-b922-78f3-8818-360fd22363cf",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T01:59:59.049Z",
+          "last_seen_at": "2026-05-08T01:59:59.049Z",
+          "last_turn_id": "019e054c-b935-7331-8694-1d0a9bf373a5",
+          "turn_count": 1
+        },
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-08T02:00:43.682Z",
+          "last_seen_at": "2026-05-08T02:00:43.682Z",
+          "last_turn_id": "019e054d-78de-76c0-870f-b3ec10d8c97a",
+          "turn_count": 1
+        }
+      }
+    },
+    "019e0553-673e-7390-af4a-153bf6642877": {
+      "session_id": "019e0553-673e-7390-af4a-153bf6642877",
+      "leader_thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+      "updated_at": "2026-05-08T02:07:18.896Z",
+      "threads": {
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T02:05:30.321Z",
+          "last_seen_at": "2026-05-08T02:05:30.321Z",
+          "last_turn_id": "019e0553-28a4-7f31-86fa-db8ecd9c3303",
+          "turn_count": 1
+        },
+        "019e0553-673e-7390-af4a-153bf6642877": {
+          "thread_id": "019e0553-673e-7390-af4a-153bf6642877",
+          "kind": "subagent",
+          "first_seen_at": "2026-05-08T02:07:18.896Z",
+          "last_seen_at": "2026-05-08T02:07:18.896Z",
+          "last_turn_id": "019e0553-6755-7bf3-a80d-53b643bc7d4f",
           "turn_count": 1
         }
       }

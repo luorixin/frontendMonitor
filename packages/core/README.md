@@ -22,6 +22,39 @@ track("button_click", { area: "hero" })
 captureError(new Error("manual error"))
 ```
 
+## Tree-shaking Friendly Usage
+
+根入口 `frontend-monitor-core` 会继续自动注册内置 integrations，兼容当前默认行为。如果你希望让 bundler 只打进实际用到的采集模块，改用 `lite` 入口加按需 integration 子路径：
+
+```ts
+import { init, track } from "frontend-monitor-core/lite"
+import { JSErrorIntegration } from "frontend-monitor-core/integrations/js-error"
+import { PerformanceIntegration } from "frontend-monitor-core/integrations/performance"
+
+init({
+  dsn: "/api/v1/monitor/collect/demo-project-key",
+  appName: "my-app",
+  integrations: [new JSErrorIntegration(), new PerformanceIntegration()]
+})
+
+track("checkout_submit")
+```
+
+`frontend-monitor-core/lite` 不会自动挂任何内置 integration；只有你显式传入或运行时 `addIntegration()` 的模块才会生效。
+
+## Source Layout
+
+当前 `src/` 目录按职责拆分，方便继续维护和扩展：
+
+- `api/`: 对外 API、内置 integration 装配、integration 注册
+- `core/`: 配置、types、状态、hooks、生命周期
+- `pipeline/`: payload 构建、队列、发送、压缩、replay
+- `storage/`: localization、offline retry、异步队列存储
+- `capture/`: 具体采集实现
+- `integrations/`: 可插拔 integration 类
+- `__tests__/`: 单元测试和浏览器 fake
+- `utils/`: 通用工具函数
+
 ## Main APIs
 
 - `init(options)`
@@ -188,9 +221,9 @@ addIntegration({
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `localization` | `boolean` | `false` | 开启后，发送前的 payload 不会立刻上报，而是写入 `localStorage`。适合手动控制发送时机。 |
-| `localizationKey` | `string` | `__frontend_monitor_local__` | 本地化缓存使用的 `localStorage` key。 |
-| `localizationOverflow` | `(error: Error) => void` | 无 | 当 `localStorage` 写入失败时触发，常见原因是容量超限或浏览器限制。 |
+| `localization` | `boolean` | `false` | 开启后，发送前的 payload 不会立刻上报，而是写入本地缓存队列。适合手动控制发送时机。 |
+| `localizationKey` | `string` | `__frontend_monitor_local__` | 本地化缓存使用的逻辑 key。SDK 会优先写入 IndexedDB，不可用时回退到 `localStorage`。 |
+| `localizationOverflow` | `(error: Error) => void` | 无 | 当本地缓存写入失败时触发，常见原因是容量超限、浏览器限制，或存储不可用。 |
 
 本地化模式的运行语义：
 

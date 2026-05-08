@@ -1,7 +1,7 @@
-import { state } from "../context"
-import { scheduleOfflineReplay } from "../offline"
-import { debugLog } from "../queue"
-import { flushReplayQueue } from "../replay"
+import { state } from "../core/context"
+import { scheduleOfflineReplay } from "../storage/offline"
+import { debugLog } from "../pipeline/queue"
+import { flushReplayQueue } from "../pipeline/replay"
 
 export function initNetworkStatusCapture(): void {
   const onOnline = () => {

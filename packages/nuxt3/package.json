@@ -7,6 +7,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -20,6 +21,21 @@
       "types": "./dist/runtime/plugin.client.d.ts",
       "import": "./dist/runtime/plugin.client.js",
       "default": "./dist/runtime/plugin.client.js"
+    },
+    "./lite": {
+      "types": "./dist/lite.d.ts",
+      "import": "./dist/lite.js",
+      "default": "./dist/lite.js"
+    },
+    "./runtime/plugin-lite": {
+      "types": "./dist/runtime/plugin.lite.d.ts",
+      "import": "./dist/runtime/plugin.lite.js",
+      "default": "./dist/runtime/plugin.lite.js"
+    },
+    "./integrations/*": {
+      "types": "./dist/integrations/*.d.ts",
+      "import": "./dist/integrations/*.js",
+      "default": "./dist/integrations/*.js"
     }
   },
   "dependencies": {

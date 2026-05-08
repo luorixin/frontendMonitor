@@ -1,5 +1,11 @@
 # frontend-monitor-react
 
+## Unreleased
+
+### Minor Changes
+
+- Add `frontend-monitor-react/lite` plus `frontend-monitor-react/integrations/*` subpath exports for tree-shaking-friendly adapter usage.
+
 ## 2.1.0
 
 ### Minor Changes
