@@ -5,9 +5,16 @@ import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../core/types"
 import { getTraceparent } from "../core/trace"
+import {
+  createMemoizedRequestBodyReader,
+  normalizeCapturedRequestBody,
+  readRequestBodySafely
+} from "./request-body"
 
 type XHRMeta = {
+  headers: Record<string, string>
   method: string
+  requestBodyReader?: () => Promise<unknown | undefined>
   url: string
 }
 
@@ -24,10 +31,15 @@ export function initXHRCapture(): void {
     !state.options?.trace.propagateTraceparent
   ) return
   if (typeof XMLHttpRequest === "undefined") return
-  if (state.originalXHROpen || state.originalXHRSend) return
+  if (
+    state.originalXHROpen ||
+    state.originalXHRSend ||
+    state.originalXHRSetRequestHeader
+  ) return
 
   state.originalXHROpen = XMLHttpRequest.prototype.open
   state.originalXHRSend = XMLHttpRequest.prototype.send
+  state.originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader
 
   XMLHttpRequest.prototype.open = function (
     method: string,
@@ -36,11 +48,26 @@ export function initXHRCapture(): void {
   ): void {
     const xhr = this as InstrumentedXHR
     xhr[META_KEY] = {
+      headers: {},
       method: method.toUpperCase(),
       url: String(url)
     }
 
     state.originalXHROpen!.call(this, method, url, ...args)
+  }
+
+  XMLHttpRequest.prototype.setRequestHeader = function (
+    name: string,
+    value: string
+  ): void {
+    const xhr = this as InstrumentedXHR
+    xhr[META_KEY] ??= {
+      headers: {},
+      method: "GET",
+      url: ""
+    }
+    xhr[META_KEY]!.headers[name.toLowerCase()] = value
+    state.originalXHRSetRequestHeader!.call(this, name, value)
   }
 
   XMLHttpRequest.prototype.send = function (...args: unknown[]): void {
@@ -54,6 +81,9 @@ export function initXHRCapture(): void {
 
     const startedAt = now()
     let terminalErrorMessage: string | undefined
+    meta.requestBodyReader = createMemoizedRequestBodyReader(() =>
+      normalizeCapturedRequestBody(args[0], meta.headers["content-type"])
+    )
 
     const onError = () => {
       terminalErrorMessage = "XMLHttpRequest network error"
@@ -67,7 +97,7 @@ export function initXHRCapture(): void {
       terminalErrorMessage = "XMLHttpRequest aborted"
     }
 
-    const onLoadEnd = () => {
+    const onLoadEnd = async () => {
       xhr.removeEventListener("error", onError)
       xhr.removeEventListener("timeout", onTimeout)
       xhr.removeEventListener("abort", onAbort)
@@ -96,6 +126,10 @@ export function initXHRCapture(): void {
             duration,
             errorMessage: terminalErrorMessage,
             method: meta.method,
+            requestBody: await readRequestBodySafely(
+              meta.requestBodyReader,
+              meta.url
+            ),
             status,
             transport: "xhr",
             url: meta.url
@@ -140,5 +174,10 @@ export function restoreXHRCapture(): void {
   if (state.originalXHRSend) {
     XMLHttpRequest.prototype.send = state.originalXHRSend
     state.originalXHRSend = null
+  }
+
+  if (state.originalXHRSetRequestHeader) {
+    XMLHttpRequest.prototype.setRequestHeader = state.originalXHRSetRequestHeader
+    state.originalXHRSetRequestHeader = null
   }
 }

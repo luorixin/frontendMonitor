@@ -5,6 +5,7 @@ export function createRequestErrorEvent(input: {
   duration: number
   errorMessage?: string
   method: string
+  requestBody?: unknown
   status?: number
   transport: "fetch" | "xhr"
   url: string
@@ -13,6 +14,7 @@ export function createRequestErrorEvent(input: {
     duration: input.duration,
     errorMessage: input.errorMessage,
     method: input.method,
+    requestBody: input.requestBody,
     status: input.status,
     timestamp: now(),
     transport: input.transport,

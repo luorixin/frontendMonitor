@@ -118,9 +118,12 @@ public class V6__add_source_map_dist_and_event_dist extends BaseJavaMigration {
         }
         if (mysqlFamily) {
           execute(connection, "ALTER TABLE " + tableName + " DROP INDEX " + current);
+        } else if (!current.equalsIgnoreCase(indexName)) {
+          execute(connection, "ALTER TABLE " + tableName + " DROP CONSTRAINT " + indexName);
         } else {
           execute(connection, "DROP INDEX " + current);
         }
+        return;
       }
     }
   }

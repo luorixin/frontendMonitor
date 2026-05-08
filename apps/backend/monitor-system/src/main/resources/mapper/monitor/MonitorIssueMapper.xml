@@ -13,6 +13,7 @@
     <result property="lastSeenAt" column="last_seen_at"/>
     <result property="occurrenceCount" column="occurrence_count"/>
     <result property="latestEventId" column="latest_event_id"/>
+    <result property="resourceUrl" column="resource_url"/>
     <result property="status" column="status"/>
     <result property="assignee" column="assignee"/>
     <result property="priority" column="priority"/>
@@ -22,65 +23,66 @@
   </resultMap>
 
   <sql id="selectMonitorIssue">
-    SELECT id, project_id, issue_type, fingerprint, title, first_seen_at, last_seen_at,
-           occurrence_count, latest_event_id, status, assignee, priority, comment_count,
-           create_time, update_time
-    FROM monitor_issue
+    SELECT mi.id, mi.project_id, mi.issue_type, mi.fingerprint, mi.title, mi.first_seen_at, mi.last_seen_at,
+           mi.occurrence_count, mi.latest_event_id, me.resource_url, mi.status, mi.assignee, mi.priority,
+           mi.comment_count, mi.create_time, mi.update_time
+    FROM monitor_issue mi
+    LEFT JOIN monitor_event me ON me.event_id = mi.latest_event_id
   </sql>
 
   <select id="selectIssueById" resultMap="MonitorIssueResult">
     <include refid="selectMonitorIssue"/>
-    WHERE id = #{id}
+    WHERE mi.id = #{id}
   </select>
 
   <select id="selectIssueByFingerprint" resultMap="MonitorIssueResult">
     <include refid="selectMonitorIssue"/>
-    WHERE project_id = #{projectId}
-      AND fingerprint = #{fingerprint}
+    WHERE mi.project_id = #{projectId}
+      AND mi.fingerprint = #{fingerprint}
   </select>
 
   <select id="selectIssueList" resultMap="MonitorIssueResult">
     <include refid="selectMonitorIssue"/>
     <where>
       <if test="projectId != null">
-        AND project_id = #{projectId}
+        AND mi.project_id = #{projectId}
       </if>
       <if test="issueType != null and issueType != ''">
-        AND issue_type = #{issueType}
+        AND mi.issue_type = #{issueType}
       </if>
       <if test="status != null and status != ''">
-        AND status = #{status}
+        AND mi.status = #{status}
       </if>
       <if test="keyword != null and keyword != ''">
         AND (
-          title LIKE CONCAT('%', #{keyword}, '%')
-          OR fingerprint LIKE CONCAT('%', #{keyword}, '%')
+          mi.title LIKE CONCAT('%', #{keyword}, '%')
+          OR mi.fingerprint LIKE CONCAT('%', #{keyword}, '%')
         )
       </if>
       <if test="startTime != null">
-        AND last_seen_at <![CDATA[ >= ]]> #{startTime}
+        AND mi.last_seen_at <![CDATA[ >= ]]> #{startTime}
       </if>
       <if test="endTime != null">
-        AND last_seen_at <![CDATA[ <= ]]> #{endTime}
+        AND mi.last_seen_at <![CDATA[ <= ]]> #{endTime}
       </if>
     </where>
-    ORDER BY last_seen_at DESC, occurrence_count DESC
+    ORDER BY mi.last_seen_at DESC, mi.occurrence_count DESC
   </select>
 
   <select id="selectTopIssues" resultMap="MonitorIssueResult">
     <include refid="selectMonitorIssue"/>
     <where>
       <if test="projectId != null">
-        AND project_id = #{projectId}
+        AND mi.project_id = #{projectId}
       </if>
       <if test="startTime != null">
-        AND last_seen_at <![CDATA[ >= ]]> #{startTime}
+        AND mi.last_seen_at <![CDATA[ >= ]]> #{startTime}
       </if>
       <if test="endTime != null">
-        AND last_seen_at <![CDATA[ <= ]]> #{endTime}
+        AND mi.last_seen_at <![CDATA[ <= ]]> #{endTime}
       </if>
     </where>
-    ORDER BY occurrence_count DESC, last_seen_at DESC
+    ORDER BY mi.occurrence_count DESC, mi.last_seen_at DESC
     LIMIT 10
   </select>
 

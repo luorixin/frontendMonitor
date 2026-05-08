@@ -1,4 +1,4 @@
-import { Alert, Card, Col, Empty, List, Row, Space, Spin, Statistic, Table } from "antd"
+import { Alert, Card, Col, Empty, List, Row, Space, Spin, Statistic, Table, Typography } from "antd"
 import { useEffect, useState } from "react"
 import {
   getDistribution,
@@ -152,7 +152,17 @@ export function HomePage() {
           <Card title="Top Issues">
             <Table
               columns={[
-                { dataIndex: "title", key: "title", title: "标题" },
+                {
+                  dataIndex: "title",
+                  key: "title",
+                  render: (_, record) => (
+                    <Space className="page-stack" direction="vertical" size={0}>
+                      <span>{record.title}</span>
+                      {record.resourceUrl ? <Typography.Text type="secondary">{record.resourceUrl}</Typography.Text> : null}
+                    </Space>
+                  ),
+                  title: "标题"
+                },
                 {
                   dataIndex: "status",
                   key: "status",

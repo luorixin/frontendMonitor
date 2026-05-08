@@ -18,6 +18,12 @@ import {
 } from "./demo-config"
 import "./style.css"
 
+const WebTracingErrorBoundaryComponent =
+  WebTracingErrorBoundary as unknown as React.ComponentType<{
+    fallback: React.ReactNode
+    children: React.ReactNode
+  }>
+
 function Dashboard() {
   const tracing = useWebTracing()
   const [count, setCount] = useState(0)
@@ -194,9 +200,9 @@ ReactDOM.createRoot(document.querySelector("#root")!).render(
     <WebTracingProvider
       options={createLocalBackendOptions()}
     >
-      <WebTracingErrorBoundary fallback={<div className="fallback">React error captured.</div>}>
+      <WebTracingErrorBoundaryComponent fallback={<div className="fallback">React error captured.</div>}>
         <Dashboard />
-      </WebTracingErrorBoundary>
+      </WebTracingErrorBoundaryComponent>
     </WebTracingProvider>
   </React.StrictMode>
 )

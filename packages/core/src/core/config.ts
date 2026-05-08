@@ -24,12 +24,54 @@ const DEFAULT_CAPTURE = {
 } as const satisfies Record<keyof Required<import("./types").CaptureOptions>, boolean>
 
 const DEFAULT_SESSION_REPLAY = {
+  canvas: {
+    enabled: false,
+    recordCanvas: false,
+    samplingInterval: 100
+  },
   enabled: false,
   endpoint: "",
+  errorLinked: {
+    consoleError: {
+      excludePatterns: [],
+      includePatterns: []
+    },
+    maxTriggersPerSession: 3,
+    pageMatcher: [],
+    postTriggerMs: 15_000,
+    preTriggerMs: 15_000,
+    requestError: {
+      includeAborts: false,
+      includeNetworkErrors: true,
+      includeTimeouts: true,
+      statusCodes: [],
+      statusRanges: ["5xx"]
+    },
+    resourceError: {
+      resourceTypes: [],
+      urlPatterns: []
+    },
+    triggerOn: [
+      "js_error",
+      "promise_rejection",
+      "console_error",
+      "request_error"
+    ]
+  },
   flushInterval: 5000,
   maskAllInputs: true,
   maxEvents: 20,
   maxPayloadBytes: 128 * 1024,
+  mode: "error-linked",
+  privacy: {
+    blockClass: "",
+    ignoreClass: "",
+    maskAllInputs: true
+  },
+  sample: {
+    errorSessionRate: 1,
+    fullSessionRate: 0
+  },
   sampleRate: 0
 } as const satisfies Required<SessionReplayOptions>
 
@@ -188,18 +230,123 @@ function normalizeSessionReplayOptions(
       : (options.sessionReplay ?? {})
 
   return {
+    canvas: {
+      enabled:
+        raw.canvas?.enabled ?? DEFAULT_SESSION_REPLAY.canvas.enabled,
+      recordCanvas:
+        raw.canvas?.recordCanvas ?? DEFAULT_SESSION_REPLAY.canvas.recordCanvas,
+      samplingInterval: Math.max(
+        0,
+        raw.canvas?.samplingInterval ??
+          DEFAULT_SESSION_REPLAY.canvas.samplingInterval
+      )
+    },
     enabled: raw.enabled ?? false,
     endpoint: raw.endpoint ?? deriveReplayEndpoint(options.dsn),
+    errorLinked: {
+      consoleError: {
+        excludePatterns: [
+          ...(raw.errorLinked?.consoleError?.excludePatterns ??
+            DEFAULT_SESSION_REPLAY.errorLinked.consoleError.excludePatterns)
+        ],
+        includePatterns: [
+          ...(raw.errorLinked?.consoleError?.includePatterns ??
+            DEFAULT_SESSION_REPLAY.errorLinked.consoleError.includePatterns)
+        ]
+      },
+      maxTriggersPerSession: Math.max(
+        1,
+        raw.errorLinked?.maxTriggersPerSession ??
+          DEFAULT_SESSION_REPLAY.errorLinked.maxTriggersPerSession
+      ),
+      pageMatcher: [
+        ...(raw.errorLinked?.pageMatcher ??
+          DEFAULT_SESSION_REPLAY.errorLinked.pageMatcher)
+      ],
+      postTriggerMs: Math.max(
+        0,
+        raw.errorLinked?.postTriggerMs ??
+          DEFAULT_SESSION_REPLAY.errorLinked.postTriggerMs
+      ),
+      preTriggerMs: Math.max(
+        0,
+        raw.errorLinked?.preTriggerMs ??
+          DEFAULT_SESSION_REPLAY.errorLinked.preTriggerMs
+      ),
+      requestError: {
+        includeAborts:
+          raw.errorLinked?.requestError?.includeAborts ??
+          DEFAULT_SESSION_REPLAY.errorLinked.requestError.includeAborts,
+        includeNetworkErrors:
+          raw.errorLinked?.requestError?.includeNetworkErrors ??
+          DEFAULT_SESSION_REPLAY.errorLinked.requestError.includeNetworkErrors,
+        includeTimeouts:
+          raw.errorLinked?.requestError?.includeTimeouts ??
+          DEFAULT_SESSION_REPLAY.errorLinked.requestError.includeTimeouts,
+        statusCodes: [
+          ...(raw.errorLinked?.requestError?.statusCodes ??
+            DEFAULT_SESSION_REPLAY.errorLinked.requestError.statusCodes)
+        ],
+        statusRanges: [
+          ...(raw.errorLinked?.requestError?.statusRanges ??
+            DEFAULT_SESSION_REPLAY.errorLinked.requestError.statusRanges)
+        ]
+      },
+      resourceError: {
+        resourceTypes: [
+          ...(raw.errorLinked?.resourceError?.resourceTypes ??
+            DEFAULT_SESSION_REPLAY.errorLinked.resourceError.resourceTypes)
+        ],
+        urlPatterns: [
+          ...(raw.errorLinked?.resourceError?.urlPatterns ??
+            DEFAULT_SESSION_REPLAY.errorLinked.resourceError.urlPatterns)
+        ]
+      },
+      triggerOn:
+        raw.errorLinked?.triggerOn?.length
+          ? [...raw.errorLinked.triggerOn]
+          : [...DEFAULT_SESSION_REPLAY.errorLinked.triggerOn]
+    },
     flushInterval: Math.max(
       0,
       raw.flushInterval ?? DEFAULT_SESSION_REPLAY.flushInterval
     ),
-    maskAllInputs: raw.maskAllInputs ?? DEFAULT_SESSION_REPLAY.maskAllInputs,
+    maskAllInputs:
+      raw.privacy?.maskAllInputs ??
+      raw.maskAllInputs ??
+      DEFAULT_SESSION_REPLAY.maskAllInputs,
     maxEvents: Math.max(1, raw.maxEvents ?? DEFAULT_SESSION_REPLAY.maxEvents),
     maxPayloadBytes: Math.max(
       1024,
       raw.maxPayloadBytes ?? DEFAULT_SESSION_REPLAY.maxPayloadBytes
     ),
+    mode:
+      raw.mode ??
+      (raw.sampleRate !== undefined || raw.maskAllInputs !== undefined
+        ? "full"
+        : DEFAULT_SESSION_REPLAY.mode),
+    privacy: {
+      blockClass:
+        raw.privacy?.blockClass ?? DEFAULT_SESSION_REPLAY.privacy.blockClass,
+      ignoreClass:
+        raw.privacy?.ignoreClass ?? DEFAULT_SESSION_REPLAY.privacy.ignoreClass,
+      maskAllInputs:
+        raw.privacy?.maskAllInputs ??
+        raw.maskAllInputs ??
+        DEFAULT_SESSION_REPLAY.privacy.maskAllInputs
+    },
+    sample: {
+      errorSessionRate: clampSampleRate(
+        raw.sample?.errorSessionRate ??
+          raw.sampleRate ??
+          DEFAULT_SESSION_REPLAY.sample.errorSessionRate
+      ),
+      fullSessionRate: clampSampleRate(
+        raw.sample?.fullSessionRate ??
+          raw.sampleRate ??
+          DEFAULT_SESSION_REPLAY.sample.fullSessionRate
+      )
+    },
     sampleRate: clampSampleRate(
       raw.sampleRate ?? DEFAULT_SESSION_REPLAY.sampleRate
     )

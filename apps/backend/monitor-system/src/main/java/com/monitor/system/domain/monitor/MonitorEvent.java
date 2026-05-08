@@ -34,6 +34,7 @@ public class MonitorEvent extends BaseEntity {
   private String message;
   private String selector;
   private String resourceType;
+  private String resourceUrl;
   private String transport;
   private String eventName;
   private String tagsJson;

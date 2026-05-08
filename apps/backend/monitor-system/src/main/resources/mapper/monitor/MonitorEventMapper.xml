@@ -30,6 +30,7 @@
     <result property="message" column="message"/>
     <result property="selector" column="selector"/>
     <result property="resourceType" column="resource_type"/>
+    <result property="resourceUrl" column="resource_url"/>
     <result property="transport" column="transport"/>
     <result property="eventName" column="event_name"/>
     <result property="tagsJson" column="tags_json"/>
@@ -45,7 +46,7 @@
   <sql id="selectMonitorEvent">
     SELECT id, project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
            app_name, app_version, environment, `release`, dist, user_id, device_id, session_id, page_id, replay_id, url, title,
-           request_method, request_status, duration, message, selector, resource_type,
+           request_method, request_status, duration, message, selector, resource_type, resource_url,
            transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
            payload_json, base_json, create_time
     FROM monitor_event
@@ -55,13 +56,13 @@
     INSERT INTO monitor_event (
       project_id, issue_id, event_id, issue_type, fingerprint, event_type, occurred_at,
       app_name, app_version, environment, `release`, dist, user_id, device_id, session_id, page_id, replay_id, url, title,
-      request_method, request_status, duration, message, selector, resource_type,
+      request_method, request_status, duration, message, selector, resource_type, resource_url,
       transport, event_name, tags_json, contexts_json, breadcrumbs_json, trace_id, span_id,
       payload_json, base_json
     ) VALUES (
       #{projectId}, #{issueId}, #{eventId}, #{issueType}, #{fingerprint}, #{eventType}, #{occurredAt},
       #{appName}, #{appVersion}, #{environment}, #{release}, #{dist}, #{userId}, #{deviceId}, #{sessionId}, #{pageId}, #{replayId}, #{url}, #{title},
-      #{requestMethod}, #{requestStatus}, #{duration}, #{message}, #{selector}, #{resourceType},
+      #{requestMethod}, #{requestStatus}, #{duration}, #{message}, #{selector}, #{resourceType}, #{resourceUrl},
       #{transport}, #{eventName}, #{tagsJson}, #{contextsJson}, #{breadcrumbsJson}, #{traceId}, #{spanId},
       #{payloadJson}, #{baseJson}
     )

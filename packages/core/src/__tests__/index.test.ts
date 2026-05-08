@@ -43,6 +43,7 @@ import {
   xhrPayloadBodies
 } from "./test-utils/browserFakes"
 import { readAsyncQueue } from "../storage/queueStore"
+import { enqueueEvent } from "../pipeline/queue"
 
 const { rrwebRecordMock } = vi.hoisted(() => ({
   rrwebRecordMock: vi.fn()
@@ -53,6 +54,11 @@ vi.mock("rrweb", () => ({
 }))
 
 let rrwebEmit: ((event: unknown) => void) | null = null
+
+function matchesFetchTarget(input: RequestInfo | URL, expectedUrl: string): boolean {
+  if (String(input) === expectedUrl) return true
+  return typeof Request !== "undefined" && input instanceof Request && input.url === expectedUrl
+}
 
 describe("frontend-monitor-core", () => {
   let sentPayloads: SentPayload[]
@@ -211,7 +217,10 @@ describe("frontend-monitor-core", () => {
         endpoint: "http://localhost:4318/replays",
         flushInterval: 100,
         maxEvents: 2,
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 
@@ -228,6 +237,356 @@ describe("frontend-monitor-core", () => {
     expect(replayBodies[0]?.events).toHaveLength(2)
   })
 
+  it("does not upload replay chunks in error-linked mode until an error triggers capture", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        pageView: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          triggerOn: ["js_error"]
+        },
+        flushInterval: 100,
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/before" } })
+    rrwebEmit?.({ type: 3, timestamp: 1400, data: { source: 1 } })
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(0)
+
+    captureError(new Error("trigger replay"))
+    rrwebEmit?.({ type: 3, timestamp: 1800, data: { source: 2 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+    expect(replayBodies[0]?.events).toHaveLength(3)
+    expect(
+      (replayBodies[0]?.events as Array<{ timestamp?: number }> | undefined)?.map(
+        event => event.timestamp
+      )
+    ).toEqual([1000, 1400, 1800])
+  })
+
+  it("ignores 4xx request errors for replay triggering by default", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        pageView: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          triggerOn: ["request_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/before-404" } })
+    enqueueEvent({
+      duration: 120,
+      errorMessage: "Not Found",
+      method: "GET",
+      status: 404,
+      timestamp: 1500,
+      transport: "fetch",
+      type: "request_error",
+      url: "http://localhost:3000/not-found"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 1800, data: { source: 2 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(0)
+  })
+
+  it("triggers replay for 5xx request errors and allows widening to 4xx", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        pageView: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          triggerOn: ["request_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/before-503" } })
+    enqueueEvent({
+      duration: 420,
+      errorMessage: "Server Error",
+      method: "POST",
+      status: 503,
+      timestamp: 1500,
+      transport: "fetch",
+      type: "request_error",
+      url: "http://localhost:3000/server-error"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 1800, data: { source: 2 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+
+    destroy()
+    replayBodies.splice(0, replayBodies.length)
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        pageView: false
+      },
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          requestError: {
+            statusRanges: ["4xx"]
+          },
+          triggerOn: ["request_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 2000, data: { href: "/before-404-enabled" } })
+    enqueueEvent({
+      duration: 120,
+      errorMessage: "Not Found",
+      method: "GET",
+      status: 404,
+      timestamp: 2400,
+      transport: "fetch",
+      type: "request_error",
+      url: "http://localhost:3000/not-found-enabled"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 2600, data: { source: 3 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+  })
+
+  it("filters console_error replay triggers by include and exclude patterns", async () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          consoleError: {
+            excludePatterns: ["ResizeObserver loop limit exceeded"],
+            includePatterns: ["checkout failed"]
+          },
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          triggerOn: ["console_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/console" } })
+    enqueueEvent({
+      args: ["ResizeObserver loop limit exceeded"],
+      timestamp: 1500,
+      type: "console_error",
+      url: "http://localhost:3000/console"
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+    expect(replayBodies).toHaveLength(0)
+
+    enqueueEvent({
+      args: ["checkout failed", "payment gateway timeout"],
+      timestamp: 2200,
+      type: "console_error",
+      url: "http://localhost:3000/console"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 2500, data: { source: 1 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+  })
+
+  it("filters resource_error replay triggers by resource type and url pattern", async () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          resourceError: {
+            resourceTypes: ["script"],
+            urlPatterns: [/critical\.js/]
+          },
+          triggerOn: ["resource_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/resource" } })
+    enqueueEvent({
+      message: "Failed to load img: https://cdn.example.com/hero.png",
+      resourceType: "img",
+      resourceUrl: "https://cdn.example.com/hero.png",
+      selector: "img.hero",
+      timestamp: 1400,
+      type: "resource_error",
+      url: "http://localhost:3000/resource"
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+    expect(replayBodies).toHaveLength(0)
+
+    enqueueEvent({
+      message: "Failed to load script: https://cdn.example.com/critical.js",
+      resourceType: "script",
+      resourceUrl: "https://cdn.example.com/critical.js",
+      selector: "script[src*=critical]",
+      timestamp: 2200,
+      type: "resource_error",
+      url: "http://localhost:3000/resource"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 2500, data: { source: 1 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+  })
+
+  it("applies pageMatcher before triggering error-linked replay", async () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        errorLinked: {
+          pageMatcher: [/\/checkout/],
+          postTriggerMs: 1000,
+          preTriggerMs: 1500,
+          triggerOn: ["console_error"]
+        },
+        mode: "error-linked",
+        sample: {
+          errorSessionRate: 1,
+          fullSessionRate: 0
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 4, timestamp: 1000, data: { href: "/pricing" } })
+    enqueueEvent({
+      args: ["checkout failed"],
+      timestamp: 1500,
+      type: "console_error",
+      url: "http://localhost:3000/pricing"
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+    expect(replayBodies).toHaveLength(0)
+
+    rrwebEmit?.({ type: 4, timestamp: 2200, data: { href: "/checkout" } })
+    enqueueEvent({
+      args: ["checkout failed"],
+      timestamp: 2500,
+      type: "console_error",
+      url: "http://localhost:3000/checkout"
+    })
+    rrwebEmit?.({ type: 3, timestamp: 2800, data: { source: 1 } })
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+  })
+
+  it("passes privacy controls to rrweb recorder", () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        mode: "full",
+        privacy: {
+          blockClass: "fm-block",
+          ignoreClass: "fm-ignore",
+          maskAllInputs: false
+        },
+        sample: {
+          fullSessionRate: 1
+        }
+      }
+    })
+
+    expect(rrwebRecordMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockClass: "fm-block",
+        ignoreClass: "fm-ignore",
+        maskAllInputs: false
+      })
+    )
+  })
+
   it("adds replay id to error payload base when session replay is enabled", async () => {
     init({
       appName: "demo",
@@ -239,7 +598,10 @@ describe("frontend-monitor-core", () => {
       sessionReplay: {
         enabled: true,
         endpoint: "http://localhost:4318/replays",
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 
@@ -757,12 +1119,27 @@ describe("frontend-monitor-core", () => {
       dsn: "http://localhost:4318/collect"
     })
 
-    await window.fetch("http://localhost:3000/bad-request")
+    await window.fetch("http://localhost:3000/bad-request", {
+      body: JSON.stringify({
+        orderId: "order-1",
+        phone: "13800138000",
+        token: "secret-token"
+      }),
+      headers: {
+        "content-type": "application/json"
+      },
+      method: "POST"
+    })
     await flush()
 
     expect(sentPayloads).toHaveLength(1)
     expect(sentPayloads[0]?.events[0]?.type).toBe("request_error")
     expect(sentPayloads[0]?.events[0]?.transport).toBe("fetch")
+    expect(sentPayloads[0]?.events[0]?.requestBody).toEqual({
+      orderId: "order-1",
+      phone: "[REDACTED]",
+      token: "[REDACTED]"
+    })
   })
 
   it("aggregates scoped duplicate errors into a single queued event", async () => {
@@ -1082,14 +1459,27 @@ describe("frontend-monitor-core", () => {
     })
 
     const xhr = new XMLHttpRequest()
-    xhr.open("GET", "http://localhost:3000/xhr-bad-request")
-    xhr.send()
+    xhr.open("POST", "http://localhost:3000/xhr-bad-request")
+    xhr.setRequestHeader("content-type", "application/json")
+    xhr.send(
+      JSON.stringify({
+        orderId: "order-1",
+        phone: "13800138000",
+        token: "secret-token"
+      })
+    )
     await flush()
 
     expect(sentPayloads).toHaveLength(1)
     expect(sentPayloads[0]?.events[0]?.type).toBe("request_error")
     expect(sentPayloads[0]?.events[0]?.transport).toBe("xhr")
+    expect(sentPayloads[0]?.events[0]?.method).toBe("POST")
     expect(sentPayloads[0]?.events[0]?.status).toBe(404)
+    expect(sentPayloads[0]?.events[0]?.requestBody).toEqual({
+      orderId: "order-1",
+      phone: "[REDACTED]",
+      token: "[REDACTED]"
+    })
   })
 
   it("captures navigation performance when enabled", async () => {
@@ -1307,7 +1697,10 @@ describe("frontend-monitor-core", () => {
         endpoint: "http://localhost:4318/replays",
         flushInterval: 100,
         maxEvents: 2,
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 
@@ -1340,7 +1733,10 @@ describe("frontend-monitor-core", () => {
         endpoint: "http://localhost:4318/replays",
         flushInterval: 100,
         maxEvents: 2,
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 
@@ -1349,7 +1745,7 @@ describe("frontend-monitor-core", () => {
 
     expect(
       fetchMock.mock.calls.some(
-        ([input]) => String(input) === "http://localhost:4318/replays"
+        ([input]) => matchesFetchTarget(input, "http://localhost:4318/replays")
       )
     ).toBe(true)
     const replayHeaders = new Headers(
@@ -1376,7 +1772,10 @@ describe("frontend-monitor-core", () => {
         endpoint: "http://localhost:4318/replays-gzip-unsupported",
         flushInterval: 100,
         maxEvents: 2,
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 
@@ -1384,7 +1783,8 @@ describe("frontend-monitor-core", () => {
     await flushSessionReplay()
 
     const replayCalls = fetchMock.mock.calls.filter(
-      ([input]) => String(input) === "http://localhost:4318/replays-gzip-unsupported"
+      ([input]) =>
+        matchesFetchTarget(input, "http://localhost:4318/replays-gzip-unsupported")
     )
 
     expect(replayCalls).toHaveLength(2)
@@ -1416,7 +1816,10 @@ describe("frontend-monitor-core", () => {
         endpoint: "http://localhost:4318/replays",
         flushInterval: 100,
         maxEvents: 2,
-        sampleRate: 1
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
       }
     })
 

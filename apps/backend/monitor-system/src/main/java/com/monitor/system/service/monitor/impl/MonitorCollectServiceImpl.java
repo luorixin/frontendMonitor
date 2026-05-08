@@ -14,11 +14,15 @@ import com.monitor.system.mapper.monitor.MonitorEventMapper;
 import com.monitor.system.mapper.monitor.MonitorIssueMapper;
 import com.monitor.system.mapper.monitor.MonitorProjectMapper;
 import com.monitor.system.service.monitor.IMonitorCollectService;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MonitorCollectServiceImpl implements IMonitorCollectService {
+  private static final int MAX_FINGERPRINT_LENGTH = 512;
+  private static final int MAX_ISSUE_TITLE_LENGTH = 255;
 
   private static final Set<String> ISSUE_TYPES = Set.of(
       "js_error",
@@ -185,6 +191,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     event.setMessage(resolveMessage(eventType, node));
     event.setSelector(text(node, "selector"));
     event.setResourceType(resolveResourceType(node));
+    event.setResourceUrl(resolveResourceUrl(node));
     event.setRequestMethod(resolveRequestMethod(node));
     event.setRequestStatus(resolveInteger(node, "status"));
     event.setDuration(resolveLong(node, "duration"));
@@ -202,16 +209,18 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
   }
 
   private void attachIssue(MonitorProject project, MonitorEvent event, JsonNode node) {
-    if (event.getIssueType() == null || event.getFingerprint() == null) {
+    String issueFingerprint = normalizeFingerprint(event.getIssueType(), event.getFingerprint());
+    if (event.getIssueType() == null || issueFingerprint == null) {
       return;
     }
+    event.setFingerprint(issueFingerprint);
 
-    MonitorIssue issue = issueMapper.selectIssueByFingerprint(project.getId(), event.getFingerprint());
+    MonitorIssue issue = issueMapper.selectIssueByFingerprint(project.getId(), issueFingerprint);
     if (issue == null) {
       issue = new MonitorIssue();
       issue.setProjectId(project.getId());
       issue.setIssueType(event.getIssueType());
-      issue.setFingerprint(event.getFingerprint());
+      issue.setFingerprint(issueFingerprint);
       issue.setTitle(buildIssueTitle(event, node));
       issue.setFirstSeenAt(event.getOccurredAt());
       issue.setLastSeenAt(event.getOccurredAt());
@@ -311,6 +320,10 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
     return text(node, "performanceType");
   }
 
+  private String resolveResourceUrl(JsonNode node) {
+    return text(node, "resourceUrl");
+  }
+
   private String resolveRequestMethod(JsonNode node) {
     return firstNonBlank(text(node, "method"), text(node, "requestMethod"));
   }
@@ -320,7 +333,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       return null;
     }
 
-    return switch (eventType) {
+    String fingerprint = switch (eventType) {
       case "js_error", "promise_rejection" -> String.join(
           "|",
           eventType,
@@ -334,7 +347,7 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
           eventType,
           nullSafe(event.getResourceType()),
           nullSafe(event.getSelector()),
-          nullSafe(event.getMessage())
+          nullSafe(firstNonBlank(event.getResourceUrl(), event.getMessage()))
       );
       case "request_error" -> String.join(
           "|",
@@ -345,17 +358,22 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
       );
       default -> null;
     };
+
+    return normalizeFingerprint(eventType, fingerprint);
   }
 
   private String buildIssueTitle(MonitorEvent event, JsonNode node) {
-    return switch (event.getIssueType()) {
+    String title = switch (event.getIssueType()) {
       case "request_error" -> firstNonBlank(
           event.getRequestMethod() + " " + event.getUrl() + " (" + event.getRequestStatus() + ")",
           event.getMessage()
       );
+      case "resource_error" -> firstNonBlank(event.getResourceUrl(), event.getMessage(), event.getEventType());
       case "console_error" -> joinArray(node.get("args"));
       default -> firstNonBlank(event.getMessage(), event.getEventType());
     };
+
+    return truncate(title, MAX_ISSUE_TITLE_LENGTH);
   }
 
   private String joinArray(JsonNode node) {
@@ -417,6 +435,32 @@ public class MonitorCollectServiceImpl implements IMonitorCollectService {
 
   private String nullSafe(String value) {
     return value == null ? "" : value;
+  }
+
+  private String normalizeFingerprint(String eventType, String fingerprint) {
+    if (fingerprint == null || fingerprint.length() <= MAX_FINGERPRINT_LENGTH) {
+      return fingerprint;
+    }
+    return eventType + "|sha256:" + sha256Hex(fingerprint);
+  }
+
+  private String truncate(String value, int maxLength) {
+    if (value == null || value.length() <= maxLength) {
+      return value;
+    }
+    if (maxLength <= 3) {
+      return value.substring(0, maxLength);
+    }
+    return value.substring(0, maxLength - 3) + "...";
+  }
+
+  private String sha256Hex(String value) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 not available", e);
+    }
   }
 
   private String writeJson(Object value) {

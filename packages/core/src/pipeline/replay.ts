@@ -2,8 +2,15 @@ import { encodeJSONRequestBody } from "./compression"
 import { record } from "rrweb"
 import { SDK_VERSION } from "../core/config"
 import { addCleanup, clearTimer, state } from "../core/context"
-import type { ReplayChunkPayload, TransportResult } from "../core/types"
-import { now, safeStringify, uuid } from "../utils"
+import type {
+  ConsoleErrorEventPayload,
+  MonitorEvent,
+  ReplayChunkPayload,
+  RequestEventPayload,
+  ResourceErrorEventPayload,
+  TransportResult
+} from "../core/types"
+import { matchesIgnoreRule, now, safeStringify, uuid } from "../utils"
 
 const REPLAY_BEACON_LIMIT = 128 * 1024
 
@@ -11,20 +18,34 @@ export function initSessionReplay(): void {
   const options = state.options?.sessionReplay
 
   if (!state.options || !options?.enabled) return
-  if (options.sampleRate <= 0 || Math.random() > options.sampleRate) return
+  const sampleRate =
+    options.mode === "full"
+      ? options.sample.fullSessionRate
+      : options.sample.errorSessionRate
+  if (sampleRate <= 0 || Math.random() > sampleRate) return
   if (state.replayStop) return
 
   state.replayId = uuid()
+  state.replayCaptureUntil = 0
+  state.replayRingBuffer = []
   state.replayQueue = []
   state.replaySequence = 0
   state.replayStartedAt = 0
+  state.replayTriggerCount = 0
 
   const stopHandler = record({
+    blockClass: options.privacy.blockClass || undefined,
     emit(event) {
       enqueueReplayEvent(event)
     },
-    maskAllInputs: options.maskAllInputs
-  })
+    ignoreClass: options.privacy.ignoreClass || undefined,
+    maskAllInputs: options.privacy.maskAllInputs,
+    recordCanvas: options.canvas.enabled && options.canvas.recordCanvas,
+    sampling:
+      options.canvas.enabled && options.canvas.recordCanvas
+        ? { canvas: options.canvas.samplingInterval }
+        : undefined
+  } as Parameters<typeof record>[0])
   state.replayStop = stopHandler || null
 
   addCleanup(() => {
@@ -40,6 +61,9 @@ export function stopSessionReplay(): void {
   state.replayStop?.()
   state.replayStop = null
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
+  state.replayCaptureUntil = 0
+  state.replayRingBuffer = []
+  state.replayQueue = []
 }
 
 export function scheduleReplayFlush(): void {
@@ -47,20 +71,33 @@ export function scheduleReplayFlush(): void {
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
   state.replayFlushTimer = setTimeout(() => {
     void flushReplayQueue()
-  }, state.options.sessionReplay.flushInterval)
+  }, resolveReplayFlushDelay())
 }
 
 export function enqueueReplayEvent(event: unknown): void {
   if (!state.options?.sessionReplay.enabled || !state.replayId) return
 
+  const options = state.options.sessionReplay
   const eventTimestamp = readReplayEventTimestamp(event)
   if (state.replayStartedAt === 0) {
     state.replayStartedAt = eventTimestamp
   }
 
+  if (options.mode === "error-linked") {
+    pushReplayRingBuffer(event, eventTimestamp)
+
+    if (!isReplayCaptureActive(eventTimestamp)) {
+      return
+    }
+  }
+
   state.replayQueue.push(event)
 
-  if (state.replayQueue.length >= state.options.sessionReplay.maxEvents) {
+  if (options.mode === "error-linked") {
+    return
+  }
+
+  if (state.replayQueue.length >= options.maxEvents) {
     void flushReplayQueue()
     return
   }
@@ -101,6 +138,10 @@ async function flushReplayQueueInternal(forceBeacon: boolean): Promise<void> {
   const result = await sendReplayChunk(finalPayload, forceBeacon)
   if (!result.success) {
     state.replayTransportQueue.push(finalPayload)
+  }
+
+  if (state.options.sessionReplay.mode === "error-linked") {
+    state.replayCaptureUntil = 0
   }
 }
 
@@ -160,6 +201,34 @@ function buildReplayChunkPayload(
   }
 
   return payload
+}
+
+export function triggerReplayCapture(event: MonitorEvent): void {
+  const options = state.options?.sessionReplay
+  if (!options?.enabled || !state.replayId) return
+  if (options.mode !== "error-linked") return
+  if (!shouldTriggerReplayForEvent(event)) return
+
+  const triggerTimestamp = event.timestamp || now()
+
+  if (state.replayCaptureUntil > 0) {
+    state.replayCaptureUntil = Math.max(
+      state.replayCaptureUntil,
+      triggerTimestamp + options.errorLinked.postTriggerMs
+    )
+    scheduleReplayFlush()
+    return
+  }
+
+  if (state.replayTriggerCount >= options.errorLinked.maxTriggersPerSession) {
+    return
+  }
+
+  state.replayTriggerCount += 1
+  state.replayCaptureUntil =
+    triggerTimestamp + options.errorLinked.postTriggerMs
+  state.replayQueue = [...state.replayRingBuffer]
+  scheduleReplayFlush()
 }
 
 async function sendReplayChunk(
@@ -265,4 +334,165 @@ function readReplayEventTimestamp(event: unknown): number {
   }
 
   return now()
+}
+
+function pushReplayRingBuffer(event: unknown, eventTimestamp: number): void {
+  const options = state.options?.sessionReplay
+  if (!options || options.mode !== "error-linked") return
+
+  state.replayRingBuffer.push(event)
+  const minTimestamp = eventTimestamp - options.errorLinked.preTriggerMs
+  while (state.replayRingBuffer.length > 0) {
+    const oldestTimestamp = readReplayEventTimestamp(state.replayRingBuffer[0])
+    if (oldestTimestamp >= minTimestamp) {
+      break
+    }
+    state.replayRingBuffer.shift()
+  }
+}
+
+function isReplayCaptureActive(eventTimestamp: number): boolean {
+  return state.replayCaptureUntil > 0 && eventTimestamp <= state.replayCaptureUntil
+}
+
+function resolveReplayFlushDelay(): number {
+  const options = state.options?.sessionReplay
+  if (!options) return 0
+  if (options.mode !== "error-linked" || state.replayCaptureUntil <= 0) {
+    return options.flushInterval
+  }
+
+  return Math.max(0, state.replayCaptureUntil - now())
+}
+
+function shouldTriggerReplayForEvent(event: MonitorEvent): boolean {
+  const options = state.options?.sessionReplay
+  if (!options) return false
+  if (!options.errorLinked.triggerOn.includes(event.type)) return false
+  if (
+    options.errorLinked.pageMatcher.length > 0 &&
+    !matchesIgnoreRule(event.url, options.errorLinked.pageMatcher)
+  ) {
+    return false
+  }
+
+  switch (event.type) {
+    case "request_error":
+      return shouldTriggerReplayForRequestError(
+        event,
+        options.errorLinked.requestError
+      )
+    case "console_error":
+      return shouldTriggerReplayForConsoleError(
+        event,
+        options.errorLinked.consoleError
+      )
+    case "resource_error":
+      return shouldTriggerReplayForResourceError(
+        event,
+        options.errorLinked.resourceError
+      )
+    default:
+      return true
+  }
+}
+
+function shouldTriggerReplayForRequestError(
+  event: RequestEventPayload,
+  requestErrorOptions: NonNullable<
+    NonNullable<
+      NonNullable<typeof state.options>["sessionReplay"]["errorLinked"]
+    >["requestError"]
+  >
+): boolean {
+  const errorMessage = event.errorMessage?.toLowerCase() ?? ""
+
+  if (errorMessage.includes("timeout")) {
+    return requestErrorOptions.includeTimeouts
+  }
+
+  if (errorMessage.includes("abort")) {
+    return requestErrorOptions.includeAborts
+  }
+
+  if (typeof event.status === "number") {
+    if (requestErrorOptions.statusCodes.includes(event.status)) {
+      return true
+    }
+
+    if (
+      event.status >= 400 &&
+      event.status < 500 &&
+      requestErrorOptions.statusRanges.includes("4xx")
+    ) {
+      return true
+    }
+
+    if (
+      event.status >= 500 &&
+      event.status < 600 &&
+      requestErrorOptions.statusRanges.includes("5xx")
+    ) {
+      return true
+    }
+
+    if (event.status === 0) {
+      return requestErrorOptions.includeNetworkErrors
+    }
+  }
+
+  if (event.status == null) {
+    return requestErrorOptions.includeNetworkErrors
+  }
+
+  return false
+}
+
+function shouldTriggerReplayForConsoleError(
+  event: ConsoleErrorEventPayload,
+  consoleErrorOptions: NonNullable<
+    NonNullable<
+      NonNullable<typeof state.options>["sessionReplay"]["errorLinked"]
+    >["consoleError"]
+  >
+): boolean {
+  const message = event.args.join(" | ")
+
+  if (
+    consoleErrorOptions.excludePatterns.length > 0 &&
+    matchesIgnoreRule(message, consoleErrorOptions.excludePatterns)
+  ) {
+    return false
+  }
+
+  if (consoleErrorOptions.includePatterns.length === 0) {
+    return true
+  }
+
+  return matchesIgnoreRule(message, consoleErrorOptions.includePatterns)
+}
+
+function shouldTriggerReplayForResourceError(
+  event: ResourceErrorEventPayload,
+  resourceErrorOptions: NonNullable<
+    NonNullable<
+      NonNullable<typeof state.options>["sessionReplay"]["errorLinked"]
+    >["resourceError"]
+  >
+): boolean {
+  if (
+    resourceErrorOptions.resourceTypes.length > 0 &&
+    !resourceErrorOptions.resourceTypes.includes(event.resourceType)
+  ) {
+    return false
+  }
+
+  if (resourceErrorOptions.urlPatterns.length === 0) {
+    return true
+  }
+
+  return matchesIgnoreRule(
+    event.resourceUrl ?? event.message,
+    resourceErrorOptions.urlPatterns
+  )
 }

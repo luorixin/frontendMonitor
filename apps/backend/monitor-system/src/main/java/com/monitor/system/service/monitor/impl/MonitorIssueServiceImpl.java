@@ -49,7 +49,6 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
 
   @Override
   public List<MonitorEvent> selectIssueEventList(Long issueId, MonitorEventQuery query) {
-    requireIssue(issueId);
     query.setIssueId(issueId);
     if (query.getEndTime() == null) {
       query.setEndTime(LocalDateTime.now());
@@ -57,7 +56,11 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
     if (query.getStartTime() == null) {
       query.setStartTime(query.getEndTime().minusHours(24));
     }
-    return eventMapper.selectEventList(query);
+    List<MonitorEvent> events = eventMapper.selectEventList(query);
+    if (events.isEmpty()) {
+      requireIssue(issueId);
+    }
+    return events;
   }
 
   @Override
@@ -127,6 +130,7 @@ public class MonitorIssueServiceImpl implements IMonitorIssueService {
     vo.setLastSeenAt(issue.getLastSeenAt());
     vo.setOccurrenceCount(issue.getOccurrenceCount());
     vo.setLatestEventId(issue.getLatestEventId());
+    vo.setResourceUrl(issue.getResourceUrl());
     vo.setStatus(issue.getStatus());
     vo.setAssignee(issue.getAssignee());
     vo.setPriority(issue.getPriority());

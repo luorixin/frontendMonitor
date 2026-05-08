@@ -6,12 +6,14 @@ import { getIssueEvents, getIssueTrend, listIssues, updateIssueAssignment, updat
 import { JsonViewer } from "../../../components/JsonViewer"
 import { PageHeader } from "../../../components/PageHeader"
 import { IssueStatusTag, PriorityTag } from "../../../components/StatusTag"
+import { ReplayPanel } from "../components/ReplayPanel"
 import { useProject } from "../../../app/project"
 import type { EventRaw, EventRecord, Issue, ResolvedEvent, SourceMapFrame, TrendPoint } from "../../../types/models"
 import { formatDateTime } from "../../../utils/date"
 import { buildParams } from "../../../utils/query"
 import { safeParseJson } from "../../../utils/json"
 import { toBackendDateTime } from "../../../utils/date"
+import dayjs from "dayjs"
 
 export function ReportsPage() {
   const { currentProject, currentProjectId, dateRange } = useProject()
@@ -87,11 +89,11 @@ export function ReportsPage() {
   async function inspectIssue(issue: Issue, pageNum = 1, pageSize = issueEventsPageSize) {
     if (!currentProjectId) return
     const params = buildParams({
-      endTime: toBackendDateTime(dateRange[1]),
+      endTime: issue.lastSeenAt ? dayjs(issue.lastSeenAt).format("YYYY-MM-DD HH:mm:ss") : toBackendDateTime(dateRange[1]),
       pageNum,
       pageSize,
       projectId: currentProjectId,
-      startTime: toBackendDateTime(dateRange[0])
+      startTime: issue.firstSeenAt ? dayjs(issue.firstSeenAt).format("YYYY-MM-DD HH:mm:ss") : toBackendDateTime(dateRange[0])
     })
     const [eventTable, trendPoints] = await Promise.all([
       getIssueEvents(issue.id, params),
@@ -104,6 +106,11 @@ export function ReportsPage() {
     setIssueEventsPageSize(pageSize)
     setIssueTrend(trendPoints)
   }
+
+  const issueReplayId =
+    selectedIssue && issueEvents.length > 0
+      ? issueEvents.find(event => event.replayId && event.replayId.trim())?.replayId
+      : undefined
 
   return (
     <Space className="page-stack" direction="vertical" size={16}>
@@ -169,6 +176,12 @@ export function ReportsPage() {
                 <Table
                   columns={[
                     { dataIndex: "title", key: "title", title: "标题" },
+                    {
+                      dataIndex: "resourceUrl",
+                      key: "resourceUrl",
+                      render: value => value || "-",
+                      title: "资源 URL"
+                    },
                     {
                       dataIndex: "status",
                       key: "status",
@@ -285,6 +298,16 @@ export function ReportsPage() {
                 指派 HIGH
               </Button>
             </Space>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="标题" span={2}>{selectedIssue.title}</Descriptions.Item>
+              <Descriptions.Item label="类型">{selectedIssue.issueType}</Descriptions.Item>
+              <Descriptions.Item label="状态"><IssueStatusTag value={selectedIssue.status} /></Descriptions.Item>
+              <Descriptions.Item label="优先级"><PriorityTag value={selectedIssue.priority} /></Descriptions.Item>
+              <Descriptions.Item label="出现次数">{selectedIssue.occurrenceCount}</Descriptions.Item>
+              <Descriptions.Item label="资源 URL" span={2}>{selectedIssue.resourceUrl || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Fingerprint" span={2}>{selectedIssue.fingerprint}</Descriptions.Item>
+            </Descriptions>
+            {issueReplayId ? <ReplayPanel replayId={issueReplayId} /> : null}
             <Card title="趋势">
               {issueTrend.length === 0 ? (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -305,6 +328,12 @@ export function ReportsPage() {
               <Table
                 columns={[
                   { dataIndex: "eventType", key: "eventType", title: "类型" },
+                  {
+                    dataIndex: "replayId",
+                    key: "replayId",
+                    render: value => value || "-",
+                    title: "Replay ID"
+                  },
                   {
                     dataIndex: "message",
                     key: "message",

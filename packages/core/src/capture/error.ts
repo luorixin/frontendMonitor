@@ -53,10 +53,12 @@ function captureResourceError(event: ErrorEvent): void {
 
   const tagName = target.tagName?.toLowerCase() ?? "unknown"
   const resourceType = resolveResourceType(tagName, target)
+  const resourceUrl = resolveResourceUrl(target)
 
   const resourceEvent: ResourceErrorEventPayload = {
-    message: `Failed to load ${resourceType}: ${resolveResourceUrl(target)}`,
+    message: `Failed to load ${resourceType}: ${resourceUrl}`,
     resourceType,
+    resourceUrl,
     selector: toSelector(target),
     timestamp: now(),
     type: "resource_error",

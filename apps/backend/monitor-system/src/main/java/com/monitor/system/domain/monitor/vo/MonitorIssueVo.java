@@ -16,6 +16,7 @@ public class MonitorIssueVo {
   private LocalDateTime lastSeenAt;
   private Long occurrenceCount;
   private String latestEventId;
+  private String resourceUrl;
   private String status;
   private String assignee;
   private String priority;

@@ -304,7 +304,7 @@ init({
 
 ### Session Replay
 
-`sessionReplay` 用于开启录屏分片采集，当前会把 rrweb 事件按 chunk 上传到独立 replay 接口。
+`sessionReplay` 用于开启录屏分片采集，支持持续全量录制和基于错误触发的窗口录制两种模式。
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -316,11 +316,33 @@ init({
 | --- | --- | --- |
 | `enabled` | `false` | 是否启用录屏。 |
 | `endpoint` | `dsn` 自动替换为 `/replays/` | replay chunk 上报地址。 |
-| `sampleRate` | `0` | replay 采样率，和普通事件采样独立。 |
+| `mode` | `"error-linked"` | `"full"` 持续录制并分片上传；`"error-linked"` 仅在命中错误触发器时上传“前后窗口”。 |
+| `sample.fullSessionRate` | `0` | `full` 模式采样率。 |
+| `sample.errorSessionRate` | `1` | `error-linked` 模式采样率。 |
+| `sampleRate` | `0` | 兼容旧配置的别名；未显式传 `mode` 时，会按旧版语义推导为 `"full"`。 |
 | `flushInterval` | `5000` | chunk 定时发送间隔，单位毫秒。 |
 | `maxEvents` | `20` | 单个 chunk 最多包含的 rrweb event 数。 |
 | `maxPayloadBytes` | `131072` | 单个 replay chunk 最大体积。 |
-| `maskAllInputs` | `true` | 是否对输入框内容做 rrweb 级别脱敏。 |
+| `errorLinked.preTriggerMs` | `15000` | 触发错误前保留的回放窗口。 |
+| `errorLinked.postTriggerMs` | `15000` | 触发错误后继续录制的窗口。 |
+| `errorLinked.maxTriggersPerSession` | `3` | 单个会话最多触发多少次错误关联录制。 |
+| `errorLinked.pageMatcher` | `[]` | 仅当事件发生页命中这些字符串或正则时才触发 replay，可用于把录制成本集中在关键页面。 |
+| `errorLinked.triggerOn` | `["js_error", "promise_rejection", "console_error", "request_error"]` | 哪些错误事件会触发 error-linked replay。 |
+| `errorLinked.requestError.statusRanges` | `["5xx"]` | `request_error` 默认只对 5xx 触发 replay，减少 404 等业务噪音。 |
+| `errorLinked.requestError.statusCodes` | `[]` | 额外放行的具体状态码。 |
+| `errorLinked.requestError.includeNetworkErrors` | `true` | 是否对无状态码的网络失败触发 replay。 |
+| `errorLinked.requestError.includeTimeouts` | `true` | 是否对 timeout 触发 replay。 |
+| `errorLinked.requestError.includeAborts` | `false` | 是否对 abort 触发 replay。默认关闭，避免用户主动取消操作造成噪音。 |
+| `errorLinked.consoleError.includePatterns` | `[]` | `console_error` 只有命中这些字符串或正则时才触发 replay。为空时表示不额外收窄。 |
+| `errorLinked.consoleError.excludePatterns` | `[]` | `console_error` 命中这些字符串或正则时不触发 replay，可用于屏蔽已知浏览器噪音。 |
+| `errorLinked.resourceError.resourceTypes` | `[]` | 仅允许这些资源类型触发 replay，例如 `["script", "link"]`。为空时不限制。 |
+| `errorLinked.resourceError.urlPatterns` | `[]` | `resource_error` 只有命中这些字符串或正则时才触发 replay。匹配目标是结构化的 `resourceUrl` 字段。 |
+| `privacy.maskAllInputs` | `true` | 是否对输入框内容做 rrweb 级别脱敏。 |
+| `privacy.blockClass` | `""` | 透传给 rrweb 的 `blockClass`。 |
+| `privacy.ignoreClass` | `""` | 透传给 rrweb 的 `ignoreClass`。 |
+| `canvas.enabled` | `false` | 是否开启 canvas 相关录制配置。 |
+| `canvas.recordCanvas` | `false` | 是否让 rrweb 录制 canvas。 |
+| `canvas.samplingInterval` | `100` | canvas 采样间隔，单位毫秒。 |
 
 启用后：
 
@@ -329,6 +351,48 @@ init({
 - 可通过 `getReplayId()` 获取当前会话 replay 标识
 - 可通过 `flushSessionReplay()` 和 `stopReplay()` 主动控制 replay
 - replay chunk 发送失败会暂存在内存重试队列，后续 `flushSessionReplay()`、页面退出或网络恢复时会再次尝试。
+
+示例：
+
+```ts
+init({
+  dsn: "https://example.com/api/v1/monitor/collect/demo",
+  appName: "demo",
+  sessionReplay: {
+    enabled: true,
+    mode: "error-linked",
+    sample: {
+      fullSessionRate: 0,
+      errorSessionRate: 1
+    },
+    errorLinked: {
+      pageMatcher: [/\/checkout/],
+      preTriggerMs: 15000,
+      postTriggerMs: 15000,
+      maxTriggersPerSession: 3,
+      triggerOn: ["js_error", "request_error"],
+      requestError: {
+        statusRanges: ["5xx"],
+        includeNetworkErrors: true,
+        includeTimeouts: true
+      },
+      consoleError: {
+        excludePatterns: ["ResizeObserver loop limit exceeded"],
+        includePatterns: ["checkout failed"]
+      },
+      resourceError: {
+        resourceTypes: ["script"],
+        urlPatterns: [/critical\.js/]
+      }
+    },
+    privacy: {
+      maskAllInputs: true,
+      blockClass: "fm-block",
+      ignoreClass: "fm-ignore"
+    }
+  }
+})
+```
 
 ### 错误聚合
 

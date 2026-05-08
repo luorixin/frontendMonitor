@@ -57,16 +57,20 @@ export type MonitorState = {
   originalReplaceState: History["replaceState"] | null
   originalXHROpen: typeof XMLHttpRequest.prototype.open | null
   originalXHRSend: typeof XMLHttpRequest.prototype.send | null
+  originalXHRSetRequestHeader: typeof XMLHttpRequest.prototype.setRequestHeader | null
   pageId: string
   pageStartTime: number
   queue: MonitorEvent[]
   replayFlushPromise: Promise<void> | null
   replayFlushTimer: ReturnType<typeof setTimeout> | null
+  replayCaptureUntil: number
   replayId: string | null
+  replayRingBuffer: unknown[]
   replayQueue: unknown[]
   replaySequence: number
   replayStartedAt: number
   replayStop: (() => void) | null
+  replayTriggerCount: number
   replayTransportQueue: ReplayChunkPayload[]
   retryTimer: ReturnType<typeof setTimeout> | null
   sessionId: string
@@ -101,16 +105,20 @@ export const state: MonitorState = {
   originalReplaceState: null,
   originalXHROpen: null,
   originalXHRSend: null,
+  originalXHRSetRequestHeader: null,
   pageId: "",
   pageStartTime: 0,
   queue: [],
   replayFlushPromise: null,
   replayFlushTimer: null,
+  replayCaptureUntil: 0,
   replayId: null,
+  replayRingBuffer: [],
   replayQueue: [],
   replaySequence: 0,
   replayStartedAt: 0,
   replayStop: null,
+  replayTriggerCount: 0,
   replayTransportQueue: [],
   retryTimer: null,
   sessionId: "",
@@ -169,16 +177,20 @@ export function resetState(): void {
   state.originalReplaceState = null
   state.originalXHROpen = null
   state.originalXHRSend = null
+  state.originalXHRSetRequestHeader = null
   state.pageId = ""
   state.pageStartTime = 0
   state.queue = []
   state.replayFlushPromise = null
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
+  state.replayCaptureUntil = 0
   state.replayId = null
+  state.replayRingBuffer = []
   state.replayQueue = []
   state.replaySequence = 0
   state.replayStartedAt = 0
   state.replayStop = null
+  state.replayTriggerCount = 0
   state.replayTransportQueue = []
   state.retryTimer = clearTimer(state.retryTimer)
   state.sessionId = ""

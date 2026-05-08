@@ -28,7 +28,8 @@ export default defineConfig({
     ...integrationEntries
   },
   format: ["esm"],
-  sourcemap: true,
+  sourcemap: false,
   minify: true,
+  splitting: false,
   target: "es2022"
 })

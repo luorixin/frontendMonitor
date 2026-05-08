@@ -1,10 +1,17 @@
-import { enqueueEvent, debugLog } from "../pipeline/queue"
+import { enqueueEvent } from "../pipeline/queue"
 import { state } from "../core/context"
 import { recordBreadcrumb } from "../pipeline/breadcrumb"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../core/types"
 import { getTraceparent } from "../core/trace"
+import {
+  createMemoizedRequestBodyReader,
+  normalizeCapturedRequestBody,
+  normalizeRequestTextBody,
+  readRequestBodySafely,
+  resolveContentType
+} from "./request-body"
 
 export function initFetchCapture(): void {
   if (
@@ -22,6 +29,7 @@ export function initFetchCapture(): void {
     init?: RequestInit
   ): Promise<Response> => {
       const requestUrl = resolveRequestUrl(input)
+      const readRequestBody = createRequestBodyReader(input, init)
       const tracedRequest = applyTraceparent(input, init)
 
       if (matchesIgnoreRule(requestUrl, state.options?.ignoreUrls ?? [])) {
@@ -65,6 +73,7 @@ export function initFetchCapture(): void {
             createRequestErrorEvent({
               duration,
               method,
+              requestBody: await readRequestBodySafely(readRequestBody, requestUrl),
               status: response.status,
               transport: "fetch",
               url: requestUrl
@@ -91,6 +100,7 @@ export function initFetchCapture(): void {
             errorMessage:
               error instanceof Error ? error.message : "Network request failed",
             method,
+            requestBody: await readRequestBodySafely(readRequestBody, requestUrl),
             transport: "fetch",
             url: requestUrl
           })
@@ -176,4 +186,29 @@ function applyTraceparent(
       headers
     }
   }
+}
+
+function createRequestBodyReader(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): (() => Promise<unknown | undefined>) | undefined {
+  if (init?.body !== undefined) {
+    return createMemoizedRequestBodyReader(() =>
+      normalizeCapturedRequestBody(init.body, resolveContentType(init.headers))
+    )
+  }
+
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    if (input.body === null || input.bodyUsed) return undefined
+
+    const clonedRequest = input.clone()
+    return createMemoizedRequestBodyReader(() =>
+      normalizeRequestTextBody(
+        clonedRequest.text(),
+        clonedRequest.headers.get("content-type")
+      )
+    )
+  }
+
+  return undefined
 }

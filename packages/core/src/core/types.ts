@@ -92,6 +92,43 @@ export type SessionReplayOptions = {
   flushInterval?: number
   maxEvents?: number
   maxPayloadBytes?: number
+  mode?: "full" | "error-linked"
+  sample?: {
+    fullSessionRate?: number
+    errorSessionRate?: number
+  }
+  errorLinked?: {
+    preTriggerMs?: number
+    postTriggerMs?: number
+    maxTriggersPerSession?: number
+    pageMatcher?: Array<string | RegExp>
+    triggerOn?: MonitorEvent["type"][]
+    consoleError?: {
+      includePatterns?: Array<string | RegExp>
+      excludePatterns?: Array<string | RegExp>
+    }
+    requestError?: {
+      statusCodes?: number[]
+      statusRanges?: Array<"4xx" | "5xx">
+      includeAborts?: boolean
+      includeNetworkErrors?: boolean
+      includeTimeouts?: boolean
+    }
+    resourceError?: {
+      resourceTypes?: string[]
+      urlPatterns?: Array<string | RegExp>
+    }
+  }
+  privacy?: {
+    maskAllInputs?: boolean
+    blockClass?: string
+    ignoreClass?: string
+  }
+  canvas?: {
+    enabled?: boolean
+    recordCanvas?: boolean
+    samplingInterval?: number
+  }
   sampleRate?: number
   maskAllInputs?: boolean
 }
@@ -166,6 +203,43 @@ export type ResolvedMonitorOptions = {
   contexts: Record<string, unknown>
   sessionReplay: Required<SessionReplayOptions> & {
     enabled: boolean
+    canvas: {
+      enabled: boolean
+      recordCanvas: boolean
+      samplingInterval: number
+    }
+    errorLinked: {
+      consoleError: {
+        excludePatterns: Array<string | RegExp>
+        includePatterns: Array<string | RegExp>
+      }
+      maxTriggersPerSession: number
+      pageMatcher: Array<string | RegExp>
+      postTriggerMs: number
+      preTriggerMs: number
+      requestError: {
+        includeAborts: boolean
+        includeNetworkErrors: boolean
+        includeTimeouts: boolean
+        statusCodes: number[]
+        statusRanges: Array<"4xx" | "5xx">
+      }
+      resourceError: {
+        resourceTypes: string[]
+        urlPatterns: Array<string | RegExp>
+      }
+      triggerOn: MonitorEvent["type"][]
+    }
+    mode: "full" | "error-linked"
+    privacy: {
+      blockClass: string
+      ignoreClass: string
+      maskAllInputs: boolean
+    }
+    sample: {
+      errorSessionRate: number
+      fullSessionRate: number
+    }
   }
   sanitize: Required<SanitizeOptions>
   scopeError: boolean
@@ -232,6 +306,7 @@ export type RequestEventPayload = BaseEvent & {
   status?: number
   duration: number
   errorMessage?: string
+  requestBody?: unknown
   transport: "fetch" | "xhr"
   url: string
 }
@@ -254,6 +329,7 @@ export type ResourceErrorEventPayload = BaseEvent & {
   type: "resource_error"
   message: string
   resourceType: string
+  resourceUrl?: string
   selector: string
 }
 

@@ -118,6 +118,184 @@ class MonitorModuleIntegrationTest {
   }
 
   @Test
+  void shouldHashLongFingerprintsAndTruncateIssueTitles() throws Exception {
+    String longMessage = "monitor-error-" + "x".repeat(600);
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/long-error", "Long Error", "device-long", "session-long", "page-long"),
+        "events", List.of(
+            Map.of(
+                "type", "js_error",
+                "message", longMessage,
+                "stack", "Error: long issue\n    at app.js:1:1",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/long-error"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.received").value(1));
+
+    Map<String, Object> storedIssue = jdbcTemplate.queryForMap(
+        """
+        SELECT fingerprint, title
+        FROM monitor_issue
+        WHERE project_id = 1 AND issue_type = 'js_error'
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    );
+
+    String fingerprint = (String) storedIssue.get("fingerprint");
+    String title = (String) storedIssue.get("title");
+
+    org.junit.jupiter.api.Assertions.assertNotNull(fingerprint);
+    org.junit.jupiter.api.Assertions.assertTrue(
+        fingerprint.startsWith("js_error|sha256:"),
+        "expected hashed fingerprint for long issue payload"
+    );
+    org.junit.jupiter.api.Assertions.assertTrue(fingerprint.length() <= 512);
+    org.junit.jupiter.api.Assertions.assertNotNull(title);
+    org.junit.jupiter.api.Assertions.assertTrue(title.length() <= 255);
+    org.junit.jupiter.api.Assertions.assertTrue(title.endsWith("..."));
+  }
+
+  @Test
+  void shouldStoreResourceUrlAndUseItForResourceIssueFingerprint() throws Exception {
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/assets", "Assets", "device-resource", "session-resource", "page-resource"),
+        "events", List.of(
+            Map.of(
+                "type", "resource_error",
+                "message", "Failed to load critical asset",
+                "resourceType", "script",
+                "resourceUrl", "https://cdn.example.com/assets/critical.js",
+                "selector", "script[src*='critical.js']",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/assets"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.received").value(1));
+
+    Map<String, Object> storedEvent = jdbcTemplate.queryForMap(
+        """
+        SELECT resource_url, fingerprint
+        FROM monitor_event
+        WHERE project_id = 1 AND event_type = 'resource_error'
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    );
+    Map<String, Object> storedIssue = jdbcTemplate.queryForMap(
+        """
+        SELECT fingerprint, title
+        FROM monitor_issue
+        WHERE project_id = 1 AND issue_type = 'resource_error'
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    );
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+        "https://cdn.example.com/assets/critical.js",
+        storedEvent.get("resource_url")
+    );
+    org.junit.jupiter.api.Assertions.assertTrue(
+        ((String) storedEvent.get("fingerprint")).contains("critical.js")
+    );
+    org.junit.jupiter.api.Assertions.assertTrue(
+        ((String) storedIssue.get("fingerprint")).contains("critical.js")
+    );
+    org.junit.jupiter.api.Assertions.assertEquals(
+        "https://cdn.example.com/assets/critical.js",
+        storedIssue.get("title")
+    );
+
+    mockMvc.perform(get("/api/v1/monitor/issues")
+            .param("projectId", "1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.rows[0].resourceUrl").value("https://cdn.example.com/assets/critical.js"));
+
+    Long issueId = jdbcTemplate.queryForObject(
+        """
+        SELECT id
+        FROM monitor_issue
+        WHERE project_id = 1 AND issue_type = 'resource_error'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        Long.class
+    );
+
+    mockMvc.perform(get("/api/v1/monitor/issues/{id}", issueId)
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.resourceUrl").value("https://cdn.example.com/assets/critical.js"));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/top-issues")
+            .param("projectId", "1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].resourceUrl").value("https://cdn.example.com/assets/critical.js"));
+  }
+
+  @Test
+  void shouldHashLongResourceIssueFingerprintsBeforePersistingIssue() throws Exception {
+    String longSelector = "script[data-critical='" + "s".repeat(420) + "']";
+    String longMessage = "Failed to load asset " + "m".repeat(420);
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/assets-long", "Assets Long", "device-resource-long", "session-resource-long", "page-resource-long"),
+        "events", List.of(
+            Map.of(
+                "type", "resource_error",
+                "message", longMessage,
+                "resourceType", "script",
+                "selector", longSelector,
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/assets-long"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.received").value(1));
+
+    Map<String, Object> storedIssue = jdbcTemplate.queryForMap(
+        """
+        SELECT fingerprint
+        FROM monitor_issue
+        WHERE project_id = 1 AND issue_type = 'resource_error'
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    );
+
+    String fingerprint = (String) storedIssue.get("fingerprint");
+    org.junit.jupiter.api.Assertions.assertNotNull(fingerprint);
+    org.junit.jupiter.api.Assertions.assertTrue(
+        fingerprint.startsWith("resource_error|sha256:"),
+        "expected hashed fingerprint for long resource issue payload"
+    );
+    org.junit.jupiter.api.Assertions.assertTrue(fingerprint.length() <= 512);
+  }
+
+  @Test
   void shouldCollectEventsFromGzipPost() throws Exception {
     Map<String, Object> payload = Map.of(
         "base", basePayload("http://localhost:4173/demo-gzip", "Demo Gzip", "device-gzip", "session-gzip", "page-gzip"),
@@ -330,6 +508,29 @@ class MonitorModuleIntegrationTest {
             .with(user("admin")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.rows[0].replayId").value(replayId));
+
+    Long issueId = jdbcTemplate.queryForObject(
+        """
+        SELECT issue_id
+        FROM monitor_event
+        WHERE project_id = 1
+          AND session_id = 'session-r1'
+          AND replay_id = 'replay-001'
+          AND issue_id IS NOT NULL
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        Long.class
+    );
+
+    mockMvc.perform(get("/api/v1/monitor/issues/{id}/events", issueId)
+            .param("pageNum", "1")
+            .param("pageSize", "20")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.rows[0].eventType").value("js_error"))
+        .andExpect(jsonPath("$.rows[0].replayId").value(replayId))
+        .andExpect(jsonPath("$.rows[0].eventId").exists());
   }
 
   @Test

@@ -4,6 +4,7 @@ import { state, clearTimer } from "../core/context"
 import { runAfterSendHooks, runBeforePushEventHooks, runBeforeSendHooks } from "../core/hooks"
 import { persistLocalizedPayload } from "../storage/localization"
 import { persistOfflineEvents, persistOfflinePayload } from "../storage/offline"
+import { triggerReplayCapture } from "./replay"
 import { sendPayload } from "./transport"
 import type { MonitorEvent } from "../core/types"
 
@@ -19,6 +20,8 @@ export function debugLog(message: string, payload?: unknown): void {
 
 export function enqueueEvent(event: MonitorEvent, flush = false): void {
   if (!state.initialized || !state.options) return
+
+  triggerReplayCapture(event)
 
   if (!flush && shouldDropBySampling()) {
     debugLog("drop event by sampling", event)

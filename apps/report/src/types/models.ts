@@ -109,6 +109,7 @@ export type EventRecord = {
   message?: string
   selector?: string
   resourceType?: string
+  resourceUrl?: string
   transport?: string
   eventName?: string
   tagsJson?: string
@@ -170,6 +171,7 @@ export type Issue = {
   lastSeenAt: string
   occurrenceCount: number
   latestEventId?: string
+  resourceUrl?: string
   status: string
   assignee?: string
   priority?: string

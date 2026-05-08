@@ -106,13 +106,14 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
           vo.setTitle(issue.getTitle());
           vo.setFirstSeenAt(issue.getFirstSeenAt());
           vo.setLastSeenAt(issue.getLastSeenAt());
-	          vo.setOccurrenceCount(issue.getOccurrenceCount());
-	          vo.setLatestEventId(issue.getLatestEventId());
-	          vo.setStatus(issue.getStatus());
-	          vo.setAssignee(issue.getAssignee());
-	          vo.setPriority(issue.getPriority());
-	          vo.setCommentCount(issue.getCommentCount());
-	          return vo;
+          vo.setOccurrenceCount(issue.getOccurrenceCount());
+          vo.setLatestEventId(issue.getLatestEventId());
+          vo.setResourceUrl(issue.getResourceUrl());
+          vo.setStatus(issue.getStatus());
+          vo.setAssignee(issue.getAssignee());
+          vo.setPriority(issue.getPriority());
+          vo.setCommentCount(issue.getCommentCount());
+          return vo;
         })
         .toList();
   }
