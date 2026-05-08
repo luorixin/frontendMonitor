@@ -2055,6 +2055,21 @@
           "turn_count": 1
         }
       }
+    },
+    "019e0560-d8f4-7412-bc20-59206a407742": {
+      "session_id": "019e0560-d8f4-7412-bc20-59206a407742",
+      "leader_thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+      "updated_at": "2026-05-08T02:19:22.941Z",
+      "threads": {
+        "019e00ed-4592-7c72-a9b8-f2243ccc0a58": {
+          "thread_id": "019e00ed-4592-7c72-a9b8-f2243ccc0a58",
+          "kind": "leader",
+          "first_seen_at": "2026-05-08T02:19:22.941Z",
+          "last_seen_at": "2026-05-08T02:19:22.941Z",
+          "last_turn_id": "019e0560-a600-7010-9c28-a35e1a6f42d7",
+          "turn_count": 1
+        }
+      }
     }
   }
 }

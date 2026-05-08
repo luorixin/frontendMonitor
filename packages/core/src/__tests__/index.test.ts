@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import packageJson from "../../package.json"
 import {
   beforeSend,
   beforePushEvent,
@@ -1290,7 +1291,7 @@ describe("frontend-monitor-core", () => {
     track("version-check", undefined, true)
     await flush()
 
-    expect(sentPayloads[0]?.base.sdkVersion).toBe("2.1.0")
+    expect(sentPayloads[0]?.base.sdkVersion).toBe(packageJson.version)
   })
 
   it("keeps failed replay chunks and retries them on manual flush", async () => {
