@@ -977,6 +977,281 @@ class MonitorModuleIntegrationTest {
         .andExpect(jsonPath("$.rows[0].ruleId").value(ruleId));
   }
 
+  @Test
+  void shouldExposeBehaviorAnalyticsForTracePagesAndHotspots() throws Exception {
+    long now = System.currentTimeMillis();
+    Map<String, Object> traceBase = basePayload(
+        "http://localhost:4173/checkout",
+        "Checkout",
+        "device-behavior",
+        "session-behavior",
+        "page-behavior"
+    );
+
+    collectEvents(traceBase, List.of(
+        Map.ofEntries(
+            Map.entry("type", "page_view"),
+            Map.entry("from", "/cart"),
+            Map.entry("to", "/checkout"),
+            Map.entry("timestamp", now - 30_000),
+            Map.entry("traceId", "trace-checkout-001"),
+            Map.entry("spanId", "span-checkout-view"),
+            Map.entry("trigger", "load"),
+            Map.entry("url", "http://localhost:4173/checkout")
+        ),
+        Map.ofEntries(
+            Map.entry("type", "request_error"),
+            Map.entry("duration", 900),
+            Map.entry("errorMessage", "Gateway Timeout"),
+            Map.entry("method", "POST"),
+            Map.entry("replayId", "replay-behavior-001"),
+            Map.entry("spanId", "span-checkout-request"),
+            Map.entry("status", 504),
+            Map.entry("timestamp", now - 20_000),
+            Map.entry("traceId", "trace-checkout-001"),
+            Map.entry("transport", "fetch"),
+            Map.entry("url", "/api/checkout")
+        )
+    ));
+
+    collectEvents(traceBase, List.of(
+        Map.ofEntries(
+            Map.entry("message", "checkout exploded"),
+            Map.entry("replayId", "replay-behavior-001"),
+            Map.entry("spanId", "span-checkout-error"),
+            Map.entry("stack", "Error: checkout exploded\n    at checkout.js:1:1"),
+            Map.entry("timestamp", now - 10_000),
+            Map.entry("traceId", "trace-checkout-001"),
+            Map.entry("type", "js_error"),
+            Map.entry("url", "http://localhost:4173/checkout")
+        ),
+        Map.ofEntries(
+            Map.entry("duration", 45_000),
+            Map.entry("pageId", "page-behavior"),
+            Map.entry("timestamp", now - 1_000),
+            Map.entry("type", "page_dwell"),
+            Map.entry("url", "http://localhost:4173/checkout")
+        )
+    ));
+
+    collectEvents(traceBase, List.of(
+        Map.of(
+            "selector", "button#place-order",
+            "tagName", "BUTTON",
+            "textPreview", "Place order",
+            "timestamp", now - 15_000,
+            "type", "click",
+            "url", "http://localhost:4173/checkout"
+        ),
+        Map.of(
+            "action", "enter",
+            "ratio", 1,
+            "selector", "section#order-summary",
+            "tagName", "SECTION",
+            "textPreview", "Order summary",
+            "threshold", 0.5,
+            "timestamp", now - 12_000,
+            "type", "exposure",
+            "url", "http://localhost:4173/checkout"
+        )
+    ));
+
+    collectEvents(traceBase, List.of(
+        Map.of(
+            "action", "leave",
+            "ratio", 0.1,
+            "selector", "section#order-summary",
+            "tagName", "SECTION",
+            "textPreview", "Order summary",
+            "threshold", 0.5,
+            "timestamp", now - 11_000,
+            "type", "exposure",
+            "url", "http://localhost:4173/checkout"
+        )
+    ));
+
+    Map<String, Object> homeBase = basePayload(
+        "http://localhost:4173/home",
+        "Home",
+        "device-behavior-home",
+        "session-home",
+        "page-home"
+    );
+
+    collectEvents(homeBase, List.of(
+        Map.of(
+            "from", "/",
+            "timestamp", now - 40_000,
+            "to", "/home",
+            "trigger", "load",
+            "type", "page_view",
+            "url", "http://localhost:4173/home"
+        ),
+        Map.of(
+            "duration", 8_000,
+            "pageId", "page-home",
+            "timestamp", now - 3_000,
+            "type", "page_dwell",
+            "url", "http://localhost:4173/home"
+        )
+    ));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/trace-overview")
+            .param("projectId", "1")
+            .param("traceId", "trace-checkout-001")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.totalTraces").value(1))
+        .andExpect(jsonPath("$.data.errorTraces").value(1))
+        .andExpect(jsonPath("$.data.slowTraces").value(1));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/traces")
+            .param("projectId", "1")
+            .param("traceId", "trace-checkout-001")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].traceId").value("trace-checkout-001"))
+        .andExpect(jsonPath("$.data[0].eventCount").value(3))
+        .andExpect(jsonPath("$.data[0].errorCount").value(2))
+        .andExpect(jsonPath("$.data[0].sessionId").value("session-behavior"));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/traces/trace-checkout-001")
+            .param("projectId", "1")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.traceId").value("trace-checkout-001"))
+        .andExpect(jsonPath("$.data.events[0].eventType").value("page_view"))
+        .andExpect(jsonPath("$.data.events[1].eventType").value("request_error"))
+        .andExpect(jsonPath("$.data.events[1].replayId").value("replay-behavior-001"))
+        .andExpect(jsonPath("$.data.events[2].eventType").value("js_error"));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/page-analytics")
+            .param("projectId", "1")
+            .param("url", "http://localhost:4173/checkout")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].url").value("http://localhost:4173/checkout"))
+        .andExpect(jsonPath("$.data[0].pv").value(1))
+        .andExpect(jsonPath("$.data[0].errorCount").value(2))
+        .andExpect(jsonPath("$.data[0].uniqueSessions").value(1))
+        .andExpect(jsonPath("$.data[0].avgDwellDuration").value(45000.0));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/page-analytics/trend")
+            .param("projectId", "1")
+            .param("url", "http://localhost:4173/checkout")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].pv").value(1))
+        .andExpect(jsonPath("$.data[0].errorCount").value(2));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/page-analytics/dwell-distribution")
+            .param("projectId", "1")
+            .param("url", "http://localhost:4173/checkout")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].bucket").value("0-15s"))
+        .andExpect(jsonPath("$.data[0].count").value(0))
+        .andExpect(jsonPath("$.data[1].bucket").value("15-60s"))
+        .andExpect(jsonPath("$.data[1].count").value(1))
+        .andExpect(jsonPath("$.data[2].bucket").value("60s+"))
+        .andExpect(jsonPath("$.data[2].count").value(0));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/hotspots")
+            .param("projectId", "1")
+            .param("eventType", "exposure")
+            .param("url", "http://localhost:4173/checkout")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].eventType").value("exposure"))
+        .andExpect(jsonPath("$.data[0].selector").value("section#order-summary"))
+        .andExpect(jsonPath("$.data[0].label").value("Order summary"))
+        .andExpect(jsonPath("$.data[0].count").value(1));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/hotspots")
+            .param("projectId", "1")
+            .param("eventType", "click")
+            .param("url", "http://localhost:4173/checkout")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].selector").value("button#place-order"))
+        .andExpect(jsonPath("$.data[0].count").value(1));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/hotspots/trend")
+            .param("projectId", "1")
+            .param("eventType", "click")
+            .param("url", "http://localhost:4173/checkout")
+            .param("selector", "button#place-order")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].count").value(1));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/hotspots/samples")
+            .param("projectId", "1")
+            .param("eventType", "click")
+            .param("url", "http://localhost:4173/checkout")
+            .param("selector", "button#place-order")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].eventType").value("click"))
+        .andExpect(jsonPath("$.data[0].message").value("Place order"));
+  }
+
+  @Test
+  void shouldReturnEmptyBehaviorAnalyticsWithoutTraceOrDwellData() throws Exception {
+    Map<String, Object> payload = Map.of(
+        "base", basePayload("http://localhost:4173/simple", "Simple", "device-simple", "session-simple", "page-simple"),
+        "events", List.of(
+            Map.of(
+                "type", "page_view",
+                "from", "/",
+                "to", "/simple",
+                "trigger", "load",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/simple"
+            ),
+            Map.of(
+                "type", "click",
+                "selector", "a#docs",
+                "tagName", "A",
+                "textPreview", "Docs",
+                "timestamp", System.currentTimeMillis(),
+                "url", "http://localhost:4173/simple"
+            )
+        )
+    );
+
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(payload)))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/trace-overview")
+            .param("projectId", "1")
+            .param("url", "http://localhost:4173/simple")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.totalTraces").value(0));
+
+    mockMvc.perform(get("/api/v1/monitor/dashboard/page-analytics/dwell-distribution")
+            .param("projectId", "1")
+            .param("url", "http://localhost:4173/simple")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].count").value(0))
+        .andExpect(jsonPath("$.data[1].count").value(0))
+        .andExpect(jsonPath("$.data[2].count").value(0));
+  }
+
+  private void collectEvents(Map<String, Object> base, List<Map<String, Object>> events) throws Exception {
+    mockMvc.perform(post("/api/v1/monitor/collect/demo-project-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(Map.of(
+                "base", base,
+                "events", events
+            ))))
+        .andExpect(status().isOk());
+  }
+
   private byte[] gzip(String body) throws Exception {
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     try (GZIPOutputStream gzip = new GZIPOutputStream(output)) {

@@ -2,15 +2,25 @@ package com.monitor.system.service.monitor.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.monitor.system.domain.monitor.MonitorEvent;
 import com.monitor.exception.ServiceException;
+import com.monitor.system.domain.monitor.MonitorEvent;
 import com.monitor.system.domain.monitor.query.MonitorDashboardQuery;
+import com.monitor.system.domain.monitor.query.MonitorEventQuery;
 import com.monitor.system.domain.monitor.vo.MonitorDashboardOverviewVo;
+import com.monitor.system.domain.monitor.vo.MonitorDwellDistributionBucketVo;
 import com.monitor.system.domain.monitor.vo.MonitorEventTypeCountVo;
+import com.monitor.system.domain.monitor.vo.MonitorHotspotRowVo;
+import com.monitor.system.domain.monitor.vo.MonitorHotspotTrendPointVo;
 import com.monitor.system.domain.monitor.vo.MonitorIssueVo;
+import com.monitor.system.domain.monitor.vo.MonitorPageAnalyticsRowVo;
+import com.monitor.system.domain.monitor.vo.MonitorPageTrendPointVo;
 import com.monitor.system.domain.monitor.vo.MonitorPageStatsVo;
 import com.monitor.system.domain.monitor.vo.MonitorRequestPerformanceTrendPointVo;
 import com.monitor.system.domain.monitor.vo.MonitorSlowRequestVo;
+import com.monitor.system.domain.monitor.vo.MonitorTraceDetailVo;
+import com.monitor.system.domain.monitor.vo.MonitorTraceOverviewVo;
+import com.monitor.system.domain.monitor.vo.MonitorTraceSummaryVo;
+import com.monitor.system.domain.monitor.vo.MonitorTraceTimelineEventVo;
 import com.monitor.system.domain.monitor.vo.MonitorTrendPointVo;
 import com.monitor.system.domain.monitor.vo.MonitorWebVitalTrendPointVo;
 import com.monitor.system.mapper.monitor.MonitorAggregateMapper;
@@ -24,12 +34,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
+  private static final long TRACE_SLOW_THRESHOLD_MS = 3_000L;
+  private static final long DWELL_SHORT_THRESHOLD_MS = 15_000L;
+  private static final long DWELL_MEDIUM_THRESHOLD_MS = 60_000L;
 
   private final MonitorProjectMapper projectMapper;
   private final MonitorEventMapper eventMapper;
@@ -199,6 +215,180 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
         .toList();
   }
 
+  @Override
+  public MonitorTraceOverviewVo getTraceOverview(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    List<TraceSummaryAccumulator> traces = buildTraceAccumulators(query);
+
+    MonitorTraceOverviewVo vo = new MonitorTraceOverviewVo();
+    vo.setTotalTraces(traces.size());
+    vo.setErrorTraces(traces.stream().filter(trace -> trace.errorCount() > 0).count());
+    vo.setSlowTraces(traces.stream().filter(trace -> trace.duration() >= TRACE_SLOW_THRESHOLD_MS).count());
+    return vo;
+  }
+
+  @Override
+  public List<MonitorTraceSummaryVo> getTraces(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    return buildTraceAccumulators(query).stream()
+        .sorted(Comparator.comparingLong(TraceSummaryAccumulator::duration).reversed()
+            .thenComparing(TraceSummaryAccumulator::lastSeenAt).reversed())
+        .map(this::toTraceSummary)
+        .toList();
+  }
+
+  @Override
+  public MonitorTraceDetailVo getTraceDetail(String traceId, MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    String normalizedTraceId = requireText(traceId, "monitor.errors.traceIdRequired");
+    List<MonitorEvent> events = loadDashboardEvents(query).stream()
+        .filter(event -> normalizedTraceId.equals(event.getTraceId()))
+        .sorted(Comparator.comparing(MonitorEvent::getOccurredAt)
+            .thenComparing(MonitorEvent::getId, Comparator.nullsLast(Long::compareTo)))
+        .toList();
+
+    if (events.isEmpty()) {
+      throw new ServiceException(404, "monitor.errors.traceNotFound");
+    }
+
+    TraceSummaryAccumulator summary = new TraceSummaryAccumulator(normalizedTraceId);
+    events.forEach(summary::add);
+
+    MonitorTraceDetailVo vo = new MonitorTraceDetailVo();
+    copyTraceSummary(vo, summary);
+    vo.setEvents(events.stream().map(this::toTraceTimelineEvent).toList());
+    return vo;
+  }
+
+  @Override
+  public List<MonitorTrendPointVo> getTraceTrend(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    Map<String, TraceTrendAccumulator> buckets = new LinkedHashMap<>();
+
+    for (TraceSummaryAccumulator trace : buildTraceAccumulators(query)) {
+      String bucket = formatBucket(query, trace.startedAt());
+      buckets.computeIfAbsent(bucket, TraceTrendAccumulator::new).add(trace.errorCount() > 0);
+    }
+
+    return buckets.values().stream()
+        .sorted(Comparator.comparing(TraceTrendAccumulator::bucket))
+        .map(this::toTraceTrendPoint)
+        .toList();
+  }
+
+  @Override
+  public List<MonitorPageAnalyticsRowVo> getPageAnalytics(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    Map<String, PageAnalyticsAccumulator> pages = buildPageAnalyticsAccumulators(query);
+
+    return pages.values().stream()
+        .sorted(Comparator.comparingLong(PageAnalyticsAccumulator::pv).reversed()
+            .thenComparing(PageAnalyticsAccumulator::errorCount, Comparator.reverseOrder())
+            .thenComparing(PageAnalyticsAccumulator::averageDwell, Comparator.reverseOrder()))
+        .map(this::toPageAnalyticsRow)
+        .toList();
+  }
+
+  @Override
+  public List<MonitorPageTrendPointVo> getPageAnalyticsTrend(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    String normalizedUrl = requireText(query.getUrl(), "monitor.errors.urlRequired");
+    Map<String, PageTrendAccumulator> buckets = new LinkedHashMap<>();
+
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      if (!normalizedUrl.equals(resolvePageContextUrl(event))) {
+        continue;
+      }
+      String bucket = formatBucket(query, event.getOccurredAt());
+      buckets.computeIfAbsent(bucket, PageTrendAccumulator::new).add(event);
+    }
+
+    return buckets.values().stream()
+        .sorted(Comparator.comparing(PageTrendAccumulator::bucket))
+        .map(this::toPageTrendPoint)
+        .toList();
+  }
+
+  @Override
+  public List<MonitorDwellDistributionBucketVo> getPageDwellDistribution(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    String normalizedUrl = requireText(query.getUrl(), "monitor.errors.urlRequired");
+
+    long shortCount = 0L;
+    long mediumCount = 0L;
+    long longCount = 0L;
+
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      if (!normalizedUrl.equals(resolvePageContextUrl(event))
+          || !"page_dwell".equals(event.getEventType())
+          || event.getDuration() == null
+          || event.getDuration() < 0) {
+        continue;
+      }
+
+      if (event.getDuration() < DWELL_SHORT_THRESHOLD_MS) {
+        shortCount += 1;
+      } else if (event.getDuration() < DWELL_MEDIUM_THRESHOLD_MS) {
+        mediumCount += 1;
+      } else {
+        longCount += 1;
+      }
+    }
+
+    return List.of(
+        toDwellBucket("0-15s", shortCount),
+        toDwellBucket("15-60s", mediumCount),
+        toDwellBucket("60s+", longCount)
+    );
+  }
+
+  @Override
+  public List<MonitorHotspotRowVo> getHotspots(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    return buildHotspotAccumulators(query).values().stream()
+        .sorted(Comparator.comparingLong(HotspotAccumulator::count).reversed()
+            .thenComparing(HotspotAccumulator::lastOccurredAt).reversed())
+        .map(this::toHotspotRow)
+        .toList();
+  }
+
+  @Override
+  public List<MonitorHotspotTrendPointVo> getHotspotTrend(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    String normalizedUrl = requireText(query.getUrl(), "monitor.errors.urlRequired");
+    String normalizedSelector = requireText(query.getSelector(), "monitor.errors.selectorRequired");
+    String normalizedEventType = requireText(query.getEventType(), "monitor.errors.eventTypeRequired");
+    Map<String, HotspotTrendAccumulator> buckets = new LinkedHashMap<>();
+
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      if (!matchesHotspotEvent(event, normalizedEventType, normalizedUrl, normalizedSelector)) {
+        continue;
+      }
+      String bucket = formatBucket(query, event.getOccurredAt());
+      buckets.computeIfAbsent(bucket, HotspotTrendAccumulator::new).increment();
+    }
+
+    return buckets.values().stream()
+        .sorted(Comparator.comparing(HotspotTrendAccumulator::bucket))
+        .map(this::toHotspotTrendPoint)
+        .toList();
+  }
+
+  @Override
+  public List<MonitorEvent> getHotspotSamples(MonitorDashboardQuery query) {
+    normalizeDashboardQuery(query);
+    String normalizedUrl = requireText(query.getUrl(), "monitor.errors.urlRequired");
+    String normalizedSelector = requireText(query.getSelector(), "monitor.errors.selectorRequired");
+    String normalizedEventType = requireText(query.getEventType(), "monitor.errors.eventTypeRequired");
+
+    return loadDashboardEvents(query).stream()
+        .filter(event -> matchesHotspotEvent(event, normalizedEventType, normalizedUrl, normalizedSelector))
+        .sorted(Comparator.comparing(MonitorEvent::getOccurredAt).reversed()
+            .thenComparing(MonitorEvent::getId, Comparator.nullsLast(Long::compareTo)).reversed())
+        .limit(20)
+        .toList();
+  }
+
   private void normalizeDashboardQuery(MonitorDashboardQuery query) {
     if (query.getProjectId() == null) {
       throw new ServiceException(400, "monitor.errors.projectIdRequired");
@@ -215,6 +405,207 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
     if (query.getStartTime().isAfter(query.getEndTime())) {
       throw new ServiceException(400, "monitor.errors.invalidTimeRange");
     }
+  }
+
+  private List<MonitorEvent> loadDashboardEvents(MonitorDashboardQuery query) {
+    MonitorEventQuery eventQuery = new MonitorEventQuery();
+    eventQuery.setProjectId(query.getProjectId());
+    eventQuery.setStartTime(query.getStartTime());
+    eventQuery.setEndTime(query.getEndTime());
+    return eventMapper.selectEventList(eventQuery);
+  }
+
+  private List<TraceSummaryAccumulator> buildTraceAccumulators(MonitorDashboardQuery query) {
+    Map<String, TraceSummaryAccumulator> traces = new LinkedHashMap<>();
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      if (!matchesTraceEvent(event, query)) {
+        continue;
+      }
+      traces.computeIfAbsent(event.getTraceId(), TraceSummaryAccumulator::new).add(event);
+    }
+    return new ArrayList<>(traces.values());
+  }
+
+  private Map<String, PageAnalyticsAccumulator> buildPageAnalyticsAccumulators(MonitorDashboardQuery query) {
+    Map<String, PageAnalyticsAccumulator> pages = new LinkedHashMap<>();
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      String pageUrl = resolvePageContextUrl(event);
+      if (pageUrl == null || pageUrl.isBlank()) {
+        continue;
+      }
+      if (query.getUrl() != null && !query.getUrl().isBlank() && !query.getUrl().equals(pageUrl)) {
+        continue;
+      }
+      pages.computeIfAbsent(pageUrl, PageAnalyticsAccumulator::new).add(event);
+    }
+    return pages;
+  }
+
+  private Map<String, HotspotAccumulator> buildHotspotAccumulators(MonitorDashboardQuery query) {
+    Map<String, HotspotAccumulator> hotspots = new LinkedHashMap<>();
+    for (MonitorEvent event : loadDashboardEvents(query)) {
+      if (!isHotspotCandidate(event, query)) {
+        continue;
+      }
+      String key = event.getEventType() + "|" + event.getUrl() + "|" + event.getSelector();
+      hotspots.computeIfAbsent(key, ignored -> new HotspotAccumulator(event)).add(event);
+    }
+    return hotspots;
+  }
+
+  private boolean matchesTraceEvent(MonitorEvent event, MonitorDashboardQuery query) {
+    if (event.getTraceId() == null || event.getTraceId().isBlank()) {
+      return false;
+    }
+    if (query.getTraceId() != null && !query.getTraceId().isBlank() && !query.getTraceId().equals(event.getTraceId())) {
+      return false;
+    }
+    if (query.getUrl() != null && !query.getUrl().isBlank() && !query.getUrl().equals(event.getUrl())) {
+      return false;
+    }
+    return true;
+  }
+
+  private boolean isHotspotCandidate(MonitorEvent event, MonitorDashboardQuery query) {
+    if (event.getUrl() == null || event.getUrl().isBlank()) {
+      return false;
+    }
+    if (event.getSelector() == null || event.getSelector().isBlank()) {
+      return false;
+    }
+    if (!"click".equals(event.getEventType()) && !"exposure".equals(event.getEventType())) {
+      return false;
+    }
+    if ("exposure".equals(event.getEventType()) && !"enter".equalsIgnoreCase(event.getEventName())) {
+      return false;
+    }
+    if (query.getEventType() != null && !query.getEventType().isBlank() && !query.getEventType().equals(event.getEventType())) {
+      return false;
+    }
+    if (query.getUrl() != null && !query.getUrl().isBlank() && !query.getUrl().equals(event.getUrl())) {
+      return false;
+    }
+    if (query.getSelector() != null && !query.getSelector().isBlank() && !query.getSelector().equals(event.getSelector())) {
+      return false;
+    }
+    return true;
+  }
+
+  private boolean matchesHotspotEvent(
+      MonitorEvent event,
+      String eventType,
+      String url,
+      String selector
+  ) {
+    return eventType.equals(event.getEventType())
+        && url.equals(event.getUrl())
+        && selector.equals(event.getSelector())
+        && (!"exposure".equals(eventType) || "enter".equalsIgnoreCase(event.getEventName()));
+  }
+
+  private MonitorTraceSummaryVo toTraceSummary(TraceSummaryAccumulator trace) {
+    MonitorTraceSummaryVo vo = new MonitorTraceSummaryVo();
+    copyTraceSummary(vo, trace);
+    return vo;
+  }
+
+  private void copyTraceSummary(MonitorTraceSummaryVo target, TraceSummaryAccumulator source) {
+    target.setTraceId(source.traceId());
+    target.setStartedAt(source.startedAt());
+    target.setLastSeenAt(source.lastSeenAt());
+    target.setDuration(source.duration());
+    target.setEventCount(source.eventCount());
+    target.setErrorCount(source.errorCount());
+    target.setUrl(source.url());
+    target.setSessionId(source.sessionId());
+  }
+
+  private MonitorTraceTimelineEventVo toTraceTimelineEvent(MonitorEvent event) {
+    MonitorTraceTimelineEventVo vo = new MonitorTraceTimelineEventVo();
+    vo.setId(event.getId());
+    vo.setEventId(event.getEventId());
+    vo.setIssueId(event.getIssueId());
+    vo.setReplayId(event.getReplayId());
+    vo.setSpanId(event.getSpanId());
+    vo.setEventType(event.getEventType());
+    vo.setMessage(event.getMessage());
+    vo.setUrl(event.getUrl());
+    vo.setDuration(event.getDuration());
+    vo.setStatus(event.getRequestStatus());
+    vo.setOccurredAt(event.getOccurredAt());
+    return vo;
+  }
+
+  private MonitorTrendPointVo toTraceTrendPoint(TraceTrendAccumulator metrics) {
+    MonitorTrendPointVo vo = new MonitorTrendPointVo();
+    vo.setBucket(metrics.bucket());
+    vo.setTotalCount(metrics.totalCount());
+    vo.setErrorCount(metrics.errorCount());
+    vo.setPageViewCount(0L);
+    return vo;
+  }
+
+  private MonitorPageAnalyticsRowVo toPageAnalyticsRow(PageAnalyticsAccumulator metrics) {
+    MonitorPageAnalyticsRowVo vo = new MonitorPageAnalyticsRowVo();
+    vo.setUrl(metrics.url());
+    vo.setPv(metrics.pv());
+    vo.setErrorCount(metrics.errorCount());
+    vo.setUniqueSessions(metrics.uniqueSessions());
+    vo.setUniqueUsers(metrics.uniqueUsers());
+    vo.setAvgDwellDuration(round(metrics.averageDwell()));
+    vo.setP75DwellDuration(round(metrics.p75Dwell()));
+    return vo;
+  }
+
+  private MonitorPageTrendPointVo toPageTrendPoint(PageTrendAccumulator metrics) {
+    MonitorPageTrendPointVo vo = new MonitorPageTrendPointVo();
+    vo.setBucket(metrics.bucket());
+    vo.setPv(metrics.pv());
+    vo.setErrorCount(metrics.errorCount());
+    vo.setAvgDwellDuration(round(metrics.averageDwell()));
+    return vo;
+  }
+
+  private MonitorDwellDistributionBucketVo toDwellBucket(String bucket, long count) {
+    MonitorDwellDistributionBucketVo vo = new MonitorDwellDistributionBucketVo();
+    vo.setBucket(bucket);
+    vo.setCount(count);
+    return vo;
+  }
+
+  private MonitorHotspotRowVo toHotspotRow(HotspotAccumulator metrics) {
+    MonitorHotspotRowVo vo = new MonitorHotspotRowVo();
+    vo.setEventType(metrics.eventType());
+    vo.setUrl(metrics.url());
+    vo.setSelector(metrics.selector());
+    vo.setLabel(metrics.label());
+    vo.setCount(metrics.count());
+    vo.setUniqueSessions(metrics.uniqueSessions());
+    vo.setLastOccurredAt(metrics.lastOccurredAt());
+    return vo;
+  }
+
+  private MonitorHotspotTrendPointVo toHotspotTrendPoint(HotspotTrendAccumulator metrics) {
+    MonitorHotspotTrendPointVo vo = new MonitorHotspotTrendPointVo();
+    vo.setBucket(metrics.bucket());
+    vo.setCount(metrics.count());
+    return vo;
+  }
+
+  private String requireText(String value, String message) {
+    if (value == null || value.isBlank()) {
+      throw new ServiceException(400, message);
+    }
+    return value;
+  }
+
+  private String resolvePageContextUrl(MonitorEvent event) {
+    JsonNode basePayload = parsePayload(event.getBaseJson());
+    String baseUrl = text(basePayload, "url");
+    if (baseUrl != null && !baseUrl.isBlank()) {
+      return baseUrl;
+    }
+    return event.getUrl();
   }
 
   private void collectNavigationVitals(
@@ -506,5 +897,285 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
     double max() {
       return samples.stream().mapToDouble(Double::doubleValue).max().orElse(0D);
     }
+  }
+
+  private static final class TraceSummaryAccumulator {
+    private final String traceId;
+    private LocalDateTime startedAt;
+    private LocalDateTime lastSeenAt;
+    private long eventCount;
+    private long errorCount;
+    private String url;
+    private String sessionId;
+
+    private TraceSummaryAccumulator(String traceId) {
+      this.traceId = traceId;
+    }
+
+    void add(MonitorEvent event) {
+      if (startedAt == null || event.getOccurredAt().isBefore(startedAt)) {
+        startedAt = event.getOccurredAt();
+      }
+      if (lastSeenAt == null || event.getOccurredAt().isAfter(lastSeenAt)) {
+        lastSeenAt = event.getOccurredAt();
+      }
+      if (url == null || url.isBlank()) {
+        url = event.getUrl();
+      }
+      if (sessionId == null || sessionId.isBlank()) {
+        sessionId = event.getSessionId();
+      }
+      eventCount += 1;
+      if (event.getIssueType() != null && !event.getIssueType().isBlank()) {
+        errorCount += 1;
+      }
+    }
+
+    String traceId() {
+      return traceId;
+    }
+
+    LocalDateTime startedAt() {
+      return startedAt;
+    }
+
+    LocalDateTime lastSeenAt() {
+      return lastSeenAt;
+    }
+
+    long duration() {
+      if (startedAt == null || lastSeenAt == null) {
+        return 0L;
+      }
+      return ChronoUnit.MILLIS.between(startedAt, lastSeenAt);
+    }
+
+    long eventCount() {
+      return eventCount;
+    }
+
+    long errorCount() {
+      return errorCount;
+    }
+
+    String url() {
+      return url;
+    }
+
+    String sessionId() {
+      return sessionId;
+    }
+  }
+
+  private static final class TraceTrendAccumulator {
+    private final String bucket;
+    private long totalCount;
+    private long errorCount;
+
+    private TraceTrendAccumulator(String bucket) {
+      this.bucket = bucket;
+    }
+
+    String bucket() {
+      return bucket;
+    }
+
+    long totalCount() {
+      return totalCount;
+    }
+
+    long errorCount() {
+      return errorCount;
+    }
+
+    void add(boolean error) {
+      totalCount += 1;
+      if (error) {
+        errorCount += 1;
+      }
+    }
+  }
+
+  private static final class PageAnalyticsAccumulator {
+    private final String url;
+    private long pv;
+    private long errorCount;
+    private final Set<String> sessions = new HashSet<>();
+    private final Set<String> users = new HashSet<>();
+    private final List<Long> dwellDurations = new ArrayList<>();
+
+    private PageAnalyticsAccumulator(String url) {
+      this.url = url;
+    }
+
+    void add(MonitorEvent event) {
+      if ("page_view".equals(event.getEventType())) {
+        pv += 1;
+      }
+      if (event.getIssueType() != null && !event.getIssueType().isBlank()) {
+        errorCount += 1;
+      }
+      if (event.getSessionId() != null && !event.getSessionId().isBlank()) {
+        sessions.add(event.getSessionId());
+      }
+      if (event.getUserId() != null && !event.getUserId().isBlank()) {
+        users.add(event.getUserId());
+      }
+      if ("page_dwell".equals(event.getEventType()) && event.getDuration() != null && event.getDuration() >= 0) {
+        dwellDurations.add(event.getDuration());
+      }
+    }
+
+    String url() {
+      return url;
+    }
+
+    long pv() {
+      return pv;
+    }
+
+    long errorCount() {
+      return errorCount;
+    }
+
+    long uniqueSessions() {
+      return sessions.size();
+    }
+
+    long uniqueUsers() {
+      return users.size();
+    }
+
+    double averageDwell() {
+      return dwellDurations.stream().mapToLong(Long::longValue).average().orElse(0D);
+    }
+
+    double p75Dwell() {
+      return percentile(dwellDurations, 0.75D);
+    }
+  }
+
+  private static final class PageTrendAccumulator {
+    private final String bucket;
+    private long pv;
+    private long errorCount;
+    private final List<Long> dwellDurations = new ArrayList<>();
+
+    private PageTrendAccumulator(String bucket) {
+      this.bucket = bucket;
+    }
+
+    String bucket() {
+      return bucket;
+    }
+
+    long pv() {
+      return pv;
+    }
+
+    long errorCount() {
+      return errorCount;
+    }
+
+    void add(MonitorEvent event) {
+      if ("page_view".equals(event.getEventType())) {
+        pv += 1;
+      }
+      if (event.getIssueType() != null && !event.getIssueType().isBlank()) {
+        errorCount += 1;
+      }
+      if ("page_dwell".equals(event.getEventType()) && event.getDuration() != null && event.getDuration() >= 0) {
+        dwellDurations.add(event.getDuration());
+      }
+    }
+
+    double averageDwell() {
+      return dwellDurations.stream().mapToLong(Long::longValue).average().orElse(0D);
+    }
+  }
+
+  private static final class HotspotAccumulator {
+    private final String eventType;
+    private final String url;
+    private final String selector;
+    private final String label;
+    private final Set<String> sessions = new HashSet<>();
+    private long count;
+    private LocalDateTime lastOccurredAt;
+
+    private HotspotAccumulator(MonitorEvent seed) {
+      this.eventType = seed.getEventType();
+      this.url = seed.getUrl();
+      this.selector = seed.getSelector();
+      this.label = seed.getMessage() == null || seed.getMessage().isBlank() ? seed.getSelector() : seed.getMessage();
+    }
+
+    void add(MonitorEvent event) {
+      count += 1;
+      if (event.getSessionId() != null && !event.getSessionId().isBlank()) {
+        sessions.add(event.getSessionId());
+      }
+      if (lastOccurredAt == null || event.getOccurredAt().isAfter(lastOccurredAt)) {
+        lastOccurredAt = event.getOccurredAt();
+      }
+    }
+
+    String eventType() {
+      return eventType;
+    }
+
+    String url() {
+      return url;
+    }
+
+    String selector() {
+      return selector;
+    }
+
+    String label() {
+      return label;
+    }
+
+    long count() {
+      return count;
+    }
+
+    long uniqueSessions() {
+      return sessions.size();
+    }
+
+    LocalDateTime lastOccurredAt() {
+      return lastOccurredAt;
+    }
+  }
+
+  private static final class HotspotTrendAccumulator {
+    private final String bucket;
+    private long count;
+
+    private HotspotTrendAccumulator(String bucket) {
+      this.bucket = bucket;
+    }
+
+    String bucket() {
+      return bucket;
+    }
+
+    long count() {
+      return count;
+    }
+
+    void increment() {
+      count += 1;
+    }
+  }
+
+  private static double percentile(List<Long> values, double percentile) {
+    if (values.isEmpty()) {
+      return 0D;
+    }
+    List<Long> sorted = values.stream().sorted().toList();
+    int index = (int) Math.ceil(sorted.size() * percentile) - 1;
+    return sorted.get(Math.max(0, Math.min(index, sorted.size() - 1)));
   }
 }

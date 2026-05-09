@@ -1,8 +1,9 @@
 import { Alert, Button, Collapse, Empty, Skeleton } from "antd"
-import { useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { getReplay } from "../../../api/replays.api"
-import { ReplayPlayerCard } from "./ReplayPlayerCard"
 import { adaptReplaySession, type ReplayPlayerData } from "../utils/replay-adapter"
+
+const ReplayPlayerCard = lazy(() => import("./ReplayPlayerCard").then(module => ({ default: module.ReplayPlayerCard })))
 
 type ReplayPanelProps = {
   replayId: string
@@ -54,7 +55,9 @@ export function ReplayPanel({ replayId }: ReplayPanelProps) {
               type="error"
             />
           ) : playerData ? (
-            <ReplayPlayerCard data={playerData} />
+            <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+              <ReplayPlayerCard data={playerData} />
+            </Suspense>
           ) : (
             <Empty description="回放数据不可用" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )

@@ -9,6 +9,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 @Setter
 public class MonitorDashboardQuery {
   private Long projectId;
+  private String traceId;
+  private String url;
+  private String selector;
+  private String eventType;
 
   @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
   private LocalDateTime startTime;

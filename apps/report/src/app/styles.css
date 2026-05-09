@@ -175,6 +175,25 @@ body {
   justify-content: center;
 }
 
+.echart-panel {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.echart-panel--empty {
+  background: #f8fafc;
+  border: 1px dashed #dbe4ee;
+  border-radius: 8px;
+  color: #64748b;
+  padding: 12px;
+}
+
+.behavior-filter-select {
+  min-width: 260px;
+}
+
 @media (max-width: 1180px) {
   .split-grid {
     grid-template-columns: 1fr;

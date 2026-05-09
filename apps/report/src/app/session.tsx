@@ -37,7 +37,11 @@ function writeStoredSession(session: Session | null) {
 }
 
 export function SessionProvider(props: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(() => readStoredSession())
+  const [session, setSession] = useState<Session | null>(() => {
+    const initialSession = readStoredSession()
+    setAccessToken(initialSession?.accessToken)
+    return initialSession
+  })
 
   useEffect(() => {
     setAccessToken(session?.accessToken)

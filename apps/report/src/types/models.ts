@@ -82,6 +82,78 @@ export type PageStats = {
   errorCount: number
 }
 
+export type TraceOverview = {
+  totalTraces: number
+  errorTraces: number
+  slowTraces: number
+}
+
+export type TraceSummary = {
+  traceId: string
+  startedAt: string
+  lastSeenAt: string
+  duration: number
+  eventCount: number
+  errorCount: number
+  url?: string
+  sessionId?: string
+}
+
+export type TraceTimelineEvent = {
+  id: number
+  eventId: string
+  issueId?: number
+  replayId?: string
+  spanId?: string
+  eventType: string
+  message?: string
+  url?: string
+  duration?: number
+  status?: number
+  occurredAt: string
+}
+
+export type TraceDetail = TraceSummary & {
+  events: TraceTimelineEvent[]
+}
+
+export type PageAnalyticsRow = {
+  url: string
+  pv: number
+  errorCount: number
+  uniqueSessions: number
+  uniqueUsers: number
+  avgDwellDuration: number
+  p75DwellDuration: number
+}
+
+export type PageTrendPoint = {
+  bucket: string
+  pv: number
+  errorCount: number
+  avgDwellDuration: number
+}
+
+export type DwellDistributionBucket = {
+  bucket: string
+  count: number
+}
+
+export type HotspotRow = {
+  eventType: "click" | "exposure"
+  url: string
+  selector: string
+  label: string
+  count: number
+  uniqueSessions: number
+  lastOccurredAt: string
+}
+
+export type HotspotTrendPoint = {
+  bucket: string
+  count: number
+}
+
 export type EventRecord = {
   id: number
   projectId: number

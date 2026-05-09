@@ -2131,6 +2131,21 @@
           "turn_count": 1
         }
       }
+    },
+    "019e0b46-d558-73a1-81c3-6e7afc61c9d0": {
+      "session_id": "019e0b46-d558-73a1-81c3-6e7afc61c9d0",
+      "leader_thread_id": "019e0b46-d558-73a1-81c3-6e7afc61c9d0",
+      "updated_at": "2026-05-09T05:52:36.303Z",
+      "threads": {
+        "019e0b46-d558-73a1-81c3-6e7afc61c9d0": {
+          "thread_id": "019e0b46-d558-73a1-81c3-6e7afc61c9d0",
+          "kind": "leader",
+          "first_seen_at": "2026-05-09T05:52:36.303Z",
+          "last_seen_at": "2026-05-09T05:52:36.303Z",
+          "last_turn_id": "019e0b47-8888-7dd3-9fbe-5a1882ce1467",
+          "turn_count": 1
+        }
+      }
     }
   }
 }

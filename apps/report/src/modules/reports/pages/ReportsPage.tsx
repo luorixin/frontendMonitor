@@ -1,5 +1,6 @@
 import { Alert, Button, Card, Descriptions, Drawer, Empty, Space, Table, Tabs, Typography } from "antd"
 import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { getEvent, getEventRaw, getResolvedEvent, listEvents } from "../../../api/events.api"
 import { getErrorMessage } from "../../../api/helpers"
 import { getIssueEvents, getIssueTrend, listIssues, updateIssueAssignment, updateIssueStatus } from "../../../api/issues.api"
@@ -16,6 +17,8 @@ import { toBackendDateTime } from "../../../utils/date"
 import dayjs from "dayjs"
 
 export function ReportsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { currentProject, currentProjectId, dateRange } = useProject()
   const [events, setEvents] = useState<EventRecord[]>([])
   const [eventsTotal, setEventsTotal] = useState(0)
@@ -78,6 +81,13 @@ export function ReportsPage() {
   useEffect(() => {
     void loadPageData()
   }, [currentProjectId, dateRange, eventsPageNum, eventsPageSize, issuesPageNum, issuesPageSize])
+
+  useEffect(() => {
+    const eventId = (location.state as { eventId?: number } | null)?.eventId
+    if (!eventId) return
+    void inspectEvent(eventId)
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.pathname, location.state, navigate])
 
   async function inspectEvent(id: number) {
     const [event, raw, resolved] = await Promise.all([getEvent(id), getEventRaw(id), getResolvedEvent(id)])

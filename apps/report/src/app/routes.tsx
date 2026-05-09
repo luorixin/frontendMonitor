@@ -17,6 +17,9 @@ const PerformancePage = lazy(() =>
 const ReportsPage = lazy(() =>
   import("../modules/reports/pages/ReportsPage").then(module => ({ default: module.ReportsPage }))
 )
+const BehaviorAnalyticsPage = lazy(() =>
+  import("../modules/behavior/pages/BehaviorAnalyticsPage").then(module => ({ default: module.BehaviorAnalyticsPage }))
+)
 const ManagePage = lazy(() =>
   import("../modules/manage/pages/ManagePage").then(module => ({ default: module.ManagePage }))
 )
@@ -56,6 +59,7 @@ export function AppRoutes() {
         <Route element={<ProtectedLayout />}>
           <Route element={<HomePage />} path="/" />
           <Route element={<PerformancePage />} path="/performance" />
+          <Route element={<BehaviorAnalyticsPage />} path="/behavior" />
           <Route element={<ReportsPage />} path="/reports" />
           <Route element={<ManagePage />} path="/manage" />
           <Route element={<SourceMapPage />} path="/source-maps" />
