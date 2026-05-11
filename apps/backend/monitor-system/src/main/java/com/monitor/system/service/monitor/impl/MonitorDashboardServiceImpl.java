@@ -211,7 +211,7 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
         .map(this::toSlowRequest)
         .sorted(Comparator.comparing(MonitorSlowRequestVo::getP75Duration).reversed()
             .thenComparing(MonitorSlowRequestVo::getAvgDuration).reversed())
-        .limit(10)
+        .limit(resolveLimit(query))
         .toList();
   }
 
@@ -233,6 +233,8 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
     return buildTraceAccumulators(query).stream()
         .sorted(Comparator.comparingLong(TraceSummaryAccumulator::duration).reversed()
             .thenComparing(TraceSummaryAccumulator::lastSeenAt).reversed())
+        .skip(resolveOffset(query))
+        .limit(resolvePageSize(query))
         .map(this::toTraceSummary)
         .toList();
   }
@@ -285,6 +287,8 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
         .sorted(Comparator.comparingLong(PageAnalyticsAccumulator::pv).reversed()
             .thenComparing(PageAnalyticsAccumulator::errorCount, Comparator.reverseOrder())
             .thenComparing(PageAnalyticsAccumulator::averageDwell, Comparator.reverseOrder()))
+        .skip(resolveOffset(query))
+        .limit(resolvePageSize(query))
         .map(this::toPageAnalyticsRow)
         .toList();
   }
@@ -348,6 +352,8 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
     return buildHotspotAccumulators(query).values().stream()
         .sorted(Comparator.comparingLong(HotspotAccumulator::count).reversed()
             .thenComparing(HotspotAccumulator::lastOccurredAt).reversed())
+        .skip(resolveOffset(query))
+        .limit(resolvePageSize(query))
         .map(this::toHotspotRow)
         .toList();
   }
@@ -385,7 +391,8 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
         .filter(event -> matchesHotspotEvent(event, normalizedEventType, normalizedUrl, normalizedSelector))
         .sorted(Comparator.comparing(MonitorEvent::getOccurredAt).reversed()
             .thenComparing(MonitorEvent::getId, Comparator.nullsLast(Long::compareTo)).reversed())
-        .limit(20)
+        .skip(resolveOffset(query))
+        .limit(resolvePageSize(query))
         .toList();
   }
 
@@ -405,13 +412,38 @@ public class MonitorDashboardServiceImpl implements IMonitorDashboardService {
     if (query.getStartTime().isAfter(query.getEndTime())) {
       throw new ServiceException(400, "monitor.errors.invalidTimeRange");
     }
+    if (query.getLimit() == null || query.getLimit() <= 0) {
+      query.setLimit(20);
+    }
+    if (query.getPageNum() == null || query.getPageNum() <= 0) {
+      query.setPageNum(1);
+    }
+    if (query.getPageSize() == null || query.getPageSize() <= 0) {
+      query.setPageSize(Math.min(query.getLimit(), 100));
+    }
+  }
+
+  private long resolveLimit(MonitorDashboardQuery query) {
+    return Math.min(Math.max(query.getLimit(), 1), 100);
+  }
+
+  private long resolvePageSize(MonitorDashboardQuery query) {
+    return Math.min(Math.max(query.getPageSize(), 1), 100);
+  }
+
+  private long resolveOffset(MonitorDashboardQuery query) {
+    return (long) (query.getPageNum() - 1) * resolvePageSize(query);
   }
 
   private List<MonitorEvent> loadDashboardEvents(MonitorDashboardQuery query) {
     MonitorEventQuery eventQuery = new MonitorEventQuery();
     eventQuery.setProjectId(query.getProjectId());
+    eventQuery.setDist(query.getDist());
     eventQuery.setStartTime(query.getStartTime());
     eventQuery.setEndTime(query.getEndTime());
+    eventQuery.setEnvironment(query.getEnvironment());
+    eventQuery.setRelease(query.getRelease());
+    eventQuery.setTraceId(query.getTraceId());
     return eventMapper.selectEventList(eventQuery);
   }
 

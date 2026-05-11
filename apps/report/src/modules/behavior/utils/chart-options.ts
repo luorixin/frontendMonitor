@@ -54,6 +54,55 @@ export function buildLineOption(input: {
   }
 }
 
+export function buildDualAxisLineOption(input: {
+  categories: string[]
+  leftAxisName: string
+  rightAxisName: string
+  series: Array<{ axis: "left" | "right"; data: number[]; name: string }>
+}): EChartsOption {
+  return {
+    color: palette,
+    grid: {
+      ...baseGrid(),
+      right: 56
+    },
+    legend: {
+      top: 0
+    },
+    tooltip: {
+      ...baseTooltip(),
+      valueFormatter: value => typeof value === "number" ? String(value) : String(value ?? "-")
+    },
+    xAxis: {
+      axisLabel: {
+        hideOverlap: true
+      },
+      axisTick: { alignWithLabel: true },
+      data: input.categories,
+      type: "category"
+    },
+    yAxis: [
+      {
+        name: input.leftAxisName,
+        type: "value"
+      },
+      {
+        name: input.rightAxisName,
+        type: "value"
+      }
+    ],
+    series: input.series.map(item => ({
+      data: item.data,
+      name: item.name,
+      smooth: true,
+      symbol: "circle",
+      symbolSize: 6,
+      type: "line",
+      yAxisIndex: item.axis === "right" ? 1 : 0
+    }))
+  }
+}
+
 export function buildBarOption(input: {
   categories: string[]
   horizontal?: boolean

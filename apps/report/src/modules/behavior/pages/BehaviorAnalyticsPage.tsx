@@ -18,7 +18,7 @@ import {
   Typography
 } from "antd"
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import {
   getHotspotSamples,
   getHotspotTrend,
@@ -50,7 +50,7 @@ import type {
 } from "../../../types/models"
 import { formatDateTime, formatMetric, toBackendDateTime } from "../../../utils/date"
 import { buildParams } from "../../../utils/query"
-import { buildBarOption, buildDonutOption, buildLineOption } from "../utils/chart-options"
+import { buildBarOption, buildDonutOption, buildDualAxisLineOption, buildLineOption } from "../utils/chart-options"
 
 const initialTraceOverview: TraceOverview = {
   errorTraces: 0,
@@ -59,6 +59,7 @@ const initialTraceOverview: TraceOverview = {
 }
 
 export function BehaviorAnalyticsPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const { currentProject, currentProjectId, dateRange } = useProject()
   const [traceOverview, setTraceOverview] = useState(initialTraceOverview)
@@ -204,6 +205,13 @@ export function BehaviorAnalyticsPage() {
     }
   }
 
+  useEffect(() => {
+    const traceId = (location.state as { traceId?: string } | null)?.traceId
+    if (!traceId) return
+    void inspectTrace(traceId)
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.pathname, location.state, navigate, currentProjectId])
+
   const traceChartOption = useMemo(() => buildLineOption({
     categories: traceTrend.map(item => item.bucket),
     series: [
@@ -212,12 +220,14 @@ export function BehaviorAnalyticsPage() {
     ]
   }), [traceTrend])
 
-  const pageTrendOption = useMemo(() => buildLineOption({
+  const pageTrendOption = useMemo(() => buildDualAxisLineOption({
     categories: pageTrend.map(item => item.bucket),
+    leftAxisName: "次数",
+    rightAxisName: "秒",
     series: [
-      { data: pageTrend.map(item => item.pv), name: "PV" },
-      { data: pageTrend.map(item => item.errorCount), name: "错误数" },
-      { data: pageTrend.map(item => item.avgDwellDuration), name: "平均停留 (ms)" }
+      { axis: "left", data: pageTrend.map(item => item.pv), name: "PV" },
+      { axis: "left", data: pageTrend.map(item => item.errorCount), name: "错误数" },
+      { axis: "right", data: pageTrend.map(item => toSeconds(item.avgDwellDuration)), name: "平均停留 (s)" }
     ]
   }), [pageTrend])
 
@@ -564,4 +574,8 @@ export function BehaviorAnalyticsPage() {
 function compactHotspotLabel(hotspot: HotspotRow) {
   const label = hotspot.label || hotspot.selector
   return label.length > 24 ? `${label.slice(0, 24)}…` : label
+}
+
+function toSeconds(milliseconds: number) {
+  return Number((milliseconds / 1000).toFixed(2))
 }

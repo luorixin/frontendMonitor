@@ -194,6 +194,18 @@ body {
   min-width: 260px;
 }
 
+.report-filter-form {
+  gap: 8px 0;
+}
+
+.report-filter-control {
+  min-width: 160px;
+}
+
+.report-filter-wide {
+  min-width: 260px;
+}
+
 @media (max-width: 1180px) {
   .split-grid {
     grid-template-columns: 1fr;
@@ -211,5 +223,14 @@ body {
 
   .filter-bar {
     display: grid;
+  }
+
+  .report-filter-form {
+    display: grid;
+  }
+
+  .report-filter-control,
+  .report-filter-wide {
+    min-width: 100%;
   }
 }

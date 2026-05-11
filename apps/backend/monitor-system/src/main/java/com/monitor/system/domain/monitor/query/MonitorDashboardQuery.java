@@ -13,6 +13,9 @@ public class MonitorDashboardQuery {
   private String url;
   private String selector;
   private String eventType;
+  private String environment;
+  private String release;
+  private String dist;
 
   @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
   private LocalDateTime startTime;
@@ -21,4 +24,7 @@ public class MonitorDashboardQuery {
   private LocalDateTime endTime;
 
   private String granularity = "hour";
+  private Integer limit = 20;
+  private Integer pageNum = 1;
+  private Integer pageSize = 20;
 }

@@ -19,6 +19,7 @@ public class MonitorEventQuery {
   private String userId;
   private String sessionId;
   private String deviceId;
+  private String traceId;
   private String url;
   private String keyword;
 

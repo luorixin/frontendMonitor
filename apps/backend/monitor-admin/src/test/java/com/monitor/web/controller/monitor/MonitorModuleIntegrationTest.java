@@ -987,6 +987,9 @@ class MonitorModuleIntegrationTest {
         "session-behavior",
         "page-behavior"
     );
+    traceBase.put("dist", "web");
+    traceBase.put("environment", "production");
+    traceBase.put("release", "2026.05.09");
 
     collectEvents(traceBase, List.of(
         Map.ofEntries(
@@ -1108,12 +1111,25 @@ class MonitorModuleIntegrationTest {
     mockMvc.perform(get("/api/v1/monitor/dashboard/traces")
             .param("projectId", "1")
             .param("traceId", "trace-checkout-001")
+            .param("environment", "production")
+            .param("release", "2026.05.09")
+            .param("dist", "web")
+            .param("pageSize", "1")
             .with(user("admin")))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
         .andExpect(jsonPath("$.data[0].traceId").value("trace-checkout-001"))
         .andExpect(jsonPath("$.data[0].eventCount").value(3))
         .andExpect(jsonPath("$.data[0].errorCount").value(2))
         .andExpect(jsonPath("$.data[0].sessionId").value("session-behavior"));
+
+    mockMvc.perform(get("/api/v1/monitor/events")
+            .param("projectId", "1")
+            .param("traceId", "trace-checkout-001")
+            .with(user("admin")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.total", greaterThanOrEqualTo(3)))
+        .andExpect(jsonPath("$.rows[0].traceId").value("trace-checkout-001"));
 
     mockMvc.perform(get("/api/v1/monitor/dashboard/traces/trace-checkout-001")
             .param("projectId", "1")
@@ -1128,8 +1144,11 @@ class MonitorModuleIntegrationTest {
     mockMvc.perform(get("/api/v1/monitor/dashboard/page-analytics")
             .param("projectId", "1")
             .param("url", "http://localhost:4173/checkout")
+            .param("release", "2026.05.09")
+            .param("pageSize", "1")
             .with(user("admin")))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
         .andExpect(jsonPath("$.data[0].url").value("http://localhost:4173/checkout"))
         .andExpect(jsonPath("$.data[0].pv").value(1))
         .andExpect(jsonPath("$.data[0].errorCount").value(2))

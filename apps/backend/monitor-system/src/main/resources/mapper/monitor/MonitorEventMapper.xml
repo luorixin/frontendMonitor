@@ -104,6 +104,9 @@
       <if test="deviceId != null and deviceId != ''">
         AND device_id = #{deviceId}
       </if>
+      <if test="traceId != null and traceId != ''">
+        AND trace_id = #{traceId}
+      </if>
       <if test="url != null and url != ''">
         AND url LIKE CONCAT('%', #{url}, '%')
       </if>
@@ -112,6 +115,8 @@
           message LIKE CONCAT('%', #{keyword}, '%')
           OR event_name LIKE CONCAT('%', #{keyword}, '%')
           OR url LIKE CONCAT('%', #{keyword}, '%')
+          OR trace_id LIKE CONCAT('%', #{keyword}, '%')
+          OR replay_id LIKE CONCAT('%', #{keyword}, '%')
         )
       </if>
       <if test="startTime != null">

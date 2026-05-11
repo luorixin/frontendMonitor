@@ -1,24 +1,40 @@
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Space, Table, Tabs, Typography } from "antd"
-import { useEffect, useState } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
-import { getEvent, getEventRaw, getResolvedEvent, listEvents } from "../../../api/events.api"
+import { Alert, Button, Card, Space, Table, Tabs } from "antd"
+import { useEffect, useMemo, useState } from "react"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { listEvents } from "../../../api/events.api"
 import { getErrorMessage } from "../../../api/helpers"
-import { getIssueEvents, getIssueTrend, listIssues, updateIssueAssignment, updateIssueStatus } from "../../../api/issues.api"
-import { JsonViewer } from "../../../components/JsonViewer"
+import { listIssues } from "../../../api/issues.api"
 import { PageHeader } from "../../../components/PageHeader"
 import { IssueStatusTag, PriorityTag } from "../../../components/StatusTag"
-import { ReplayPanel } from "../components/ReplayPanel"
 import { useProject } from "../../../app/project"
-import type { EventRaw, EventRecord, Issue, ResolvedEvent, SourceMapFrame, TrendPoint } from "../../../types/models"
-import { formatDateTime } from "../../../utils/date"
+import type { EventRecord, Issue } from "../../../types/models"
+import { formatDateTime, toBackendDateTime } from "../../../utils/date"
 import { buildParams } from "../../../utils/query"
-import { safeParseJson } from "../../../utils/json"
-import { toBackendDateTime } from "../../../utils/date"
-import dayjs from "dayjs"
+import { EventDetailDrawer } from "../components/EventDetailDrawer"
+import { IssueDetailDrawer } from "../components/IssueDetailDrawer"
+import { ReportFilters, type EventReportFilters, type IssueReportFilters } from "../components/ReportFilters"
+
+const eventFilterKeys = [
+  "eventType",
+  "environment",
+  "release",
+  "dist",
+  "userId",
+  "sessionId",
+  "deviceId",
+  "url",
+  "keyword",
+  "traceId"
+] as const
+
+const issueFilterKeys = ["issueType", "status", "keyword"] as const
+
+type ReportTabKey = "events" | "issues"
 
 export function ReportsPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { currentProject, currentProjectId, dateRange } = useProject()
   const [events, setEvents] = useState<EventRecord[]>([])
   const [eventsTotal, setEventsTotal] = useState(0)
@@ -28,34 +44,46 @@ export function ReportsPage() {
   const [issuesTotal, setIssuesTotal] = useState(0)
   const [issuesPageNum, setIssuesPageNum] = useState(1)
   const [issuesPageSize, setIssuesPageSize] = useState(20)
-  const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
-  const [eventRaw, setEventRaw] = useState<EventRaw | null>(null)
-  const [resolvedEvent, setResolvedEvent] = useState<ResolvedEvent | null>(null)
+  const [eventFilters, setEventFilters] = useState<EventReportFilters>(() => readEventFilters(searchParams))
+  const [issueFilters, setIssueFilters] = useState<IssueReportFilters>(() => readIssueFilters(searchParams))
+  const [selectedEventId, setSelectedEventId] = useState<number>()
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
-  const [issueEvents, setIssueEvents] = useState<EventRecord[]>([])
-  const [issueEventsTotal, setIssueEventsTotal] = useState(0)
-  const [issueEventsPageNum, setIssueEventsPageNum] = useState(1)
-  const [issueEventsPageSize, setIssueEventsPageSize] = useState(20)
-  const [issueTrend, setIssueTrend] = useState<TrendPoint[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  const activeTab = (searchParams.get("tab") === "issues" ? "issues" : "events") satisfies ReportTabKey
+  const searchKey = searchParams.toString()
+
+  useEffect(() => {
+    setEventFilters(readEventFilters(searchParams))
+    setIssueFilters(readIssueFilters(searchParams))
+  }, [searchKey])
+
+  useEffect(() => {
+    setEventsPageNum(1)
+    setIssuesPageNum(1)
+  }, [currentProjectId, dateRange, eventFilters, issueFilters])
+
+  const eventParams = useMemo(() => buildParams({
+    ...eventFilters,
+    endTime: toBackendDateTime(dateRange[1]),
+    pageNum: eventsPageNum,
+    pageSize: eventsPageSize,
+    projectId: currentProjectId,
+    startTime: toBackendDateTime(dateRange[0])
+  }), [currentProjectId, dateRange, eventFilters, eventsPageNum, eventsPageSize])
+
+  const issueParams = useMemo(() => buildParams({
+    ...issueFilters,
+    endTime: toBackendDateTime(dateRange[1]),
+    pageNum: issuesPageNum,
+    pageSize: issuesPageSize,
+    projectId: currentProjectId,
+    startTime: toBackendDateTime(dateRange[0])
+  }), [currentProjectId, dateRange, issueFilters, issuesPageNum, issuesPageSize])
+
   async function loadPageData() {
     if (!currentProjectId) return
-    const eventParams = buildParams({
-      endTime: toBackendDateTime(dateRange[1]),
-      pageNum: eventsPageNum,
-      pageSize: eventsPageSize,
-      projectId: currentProjectId,
-      startTime: toBackendDateTime(dateRange[0])
-    })
-    const issueParams = buildParams({
-      endTime: toBackendDateTime(dateRange[1]),
-      pageNum: issuesPageNum,
-      pageSize: issuesPageSize,
-      projectId: currentProjectId,
-      startTime: toBackendDateTime(dateRange[0])
-    })
 
     setLoading(true)
     setError("")
@@ -73,54 +101,57 @@ export function ReportsPage() {
   }
 
   useEffect(() => {
-    setEventsPageNum(1)
-    setIssuesPageNum(1)
-    setIssueEventsPageNum(1)
-  }, [currentProjectId, dateRange])
-
-  useEffect(() => {
     void loadPageData()
-  }, [currentProjectId, dateRange, eventsPageNum, eventsPageSize, issuesPageNum, issuesPageSize])
+  }, [currentProjectId, eventParams, issueParams])
 
   useEffect(() => {
     const eventId = (location.state as { eventId?: number } | null)?.eventId
     if (!eventId) return
-    void inspectEvent(eventId)
-    navigate(location.pathname, { replace: true, state: {} })
-  }, [location.pathname, location.state, navigate])
+    setSelectedEventId(eventId)
+    navigate(location.pathname + location.search, { replace: true, state: {} })
+  }, [location.pathname, location.search, location.state, navigate])
 
-  async function inspectEvent(id: number) {
-    const [event, raw, resolved] = await Promise.all([getEvent(id), getEventRaw(id), getResolvedEvent(id)])
-    setSelectedEvent(event)
-    setEventRaw(raw)
-    setResolvedEvent(resolved)
+  function updateSearch(nextValues: Record<string, string | undefined>) {
+    const next = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(nextValues)) {
+      if (value === undefined || value === "") {
+        next.delete(key)
+      } else {
+        next.set(key, value)
+      }
+    }
+    setSearchParams(next, { replace: true })
   }
 
-  async function inspectIssue(issue: Issue, pageNum = 1, pageSize = issueEventsPageSize) {
-    if (!currentProjectId) return
-    const params = buildParams({
-      endTime: issue.lastSeenAt ? dayjs(issue.lastSeenAt).format("YYYY-MM-DD HH:mm:ss") : toBackendDateTime(dateRange[1]),
-      pageNum,
-      pageSize,
-      projectId: currentProjectId,
-      startTime: issue.firstSeenAt ? dayjs(issue.firstSeenAt).format("YYYY-MM-DD HH:mm:ss") : toBackendDateTime(dateRange[0])
+  function applyEventFilters(filters: EventReportFilters) {
+    const nextFilters = normalizeEventFilters(filters)
+    setEventFilters(nextFilters)
+    setEventsPageNum(1)
+    updateSearch({
+      ...Object.fromEntries(eventFilterKeys.map(key => [key, nextFilters[key]])),
+      tab: "events"
     })
-    const [eventTable, trendPoints] = await Promise.all([
-      getIssueEvents(issue.id, params),
-      getIssueTrend(issue.id, params)
-    ])
-    setSelectedIssue(issue)
-    setIssueEvents(eventTable.rows)
-    setIssueEventsTotal(eventTable.total)
-    setIssueEventsPageNum(pageNum)
-    setIssueEventsPageSize(pageSize)
-    setIssueTrend(trendPoints)
   }
 
-  const issueReplayId =
-    selectedIssue && issueEvents.length > 0
-      ? issueEvents.find(event => event.replayId && event.replayId.trim())?.replayId
-      : undefined
+  function applyIssueFilters(filters: IssueReportFilters) {
+    const nextFilters = normalizeIssueFilters(filters)
+    setIssueFilters(nextFilters)
+    setIssuesPageNum(1)
+    updateSearch({
+      issueKeyword: nextFilters.keyword,
+      issueType: nextFilters.issueType,
+      status: nextFilters.status,
+      tab: "issues"
+    })
+  }
+
+  function mergeEventFilters(filters: EventReportFilters) {
+    applyEventFilters({ ...eventFilters, ...filters })
+  }
+
+  function openTrace(traceId: string) {
+    navigate("/behavior", { state: { traceId } })
+  }
 
   return (
     <Space className="page-stack" direction="vertical" size={16}>
@@ -130,7 +161,17 @@ export function ReportsPage() {
         title="报表"
       />
       {error ? <Alert message={error} type="error" /> : null}
+
+      <ReportFilters
+        eventFilters={eventFilters}
+        issueFilters={issueFilters}
+        onEventFiltersChange={applyEventFilters}
+        onIssueFiltersChange={applyIssueFilters}
+      />
+
       <Tabs
+        activeKey={activeTab}
+        onChange={key => updateSearch({ tab: key })}
         items={[
           {
             key: "events",
@@ -146,9 +187,10 @@ export function ReportsPage() {
                       render: (_, record) => record.message || record.eventName || record.url || "-",
                       title: "摘要"
                     },
-                    { dataIndex: "environment", key: "environment", title: "环境" },
-                    { dataIndex: "release", key: "release", title: "Release" },
-                    { dataIndex: "dist", key: "dist", title: "Dist" },
+                    { dataIndex: "environment", key: "environment", render: value => value || "-", title: "环境" },
+                    { dataIndex: "release", key: "release", render: value => value || "-", title: "Release" },
+                    { dataIndex: "dist", key: "dist", render: value => value || "-", title: "Dist" },
+                    { dataIndex: "traceId", key: "traceId", render: value => value || "-", title: "Trace" },
                     {
                       dataIndex: "occurredAt",
                       key: "occurredAt",
@@ -157,7 +199,7 @@ export function ReportsPage() {
                     },
                     {
                       key: "actions",
-                      render: (_, record) => <Button onClick={() => void inspectEvent(record.id)} size="small">详情</Button>,
+                      render: (_, record) => <Button onClick={() => setSelectedEventId(record.id)} size="small">详情</Button>,
                       title: "操作"
                     }
                   ]}
@@ -204,10 +246,11 @@ export function ReportsPage() {
                       render: value => <PriorityTag value={value} />,
                       title: "优先级"
                     },
+                    { dataIndex: "assignee", key: "assignee", render: value => value || "-", title: "负责人" },
                     { dataIndex: "occurrenceCount", key: "occurrenceCount", title: "出现次数" },
                     {
                       key: "actions",
-                      render: (_, record) => <Button onClick={() => void inspectIssue(record)} size="small">详情</Button>,
+                      render: (_, record) => <Button onClick={() => setSelectedIssue(record)} size="small">详情</Button>,
                       title: "操作"
                     }
                   ]}
@@ -231,165 +274,53 @@ export function ReportsPage() {
         ]}
       />
 
-      <Drawer
-        destroyOnHidden
-        onClose={() => setSelectedEvent(null)}
-        open={Boolean(selectedEvent)}
-        title="事件详情"
-        width={720}
-      >
-        {selectedEvent ? (
-          <Space className="page-stack" direction="vertical" size={16}>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="Event ID">{selectedEvent.eventId}</Descriptions.Item>
-              <Descriptions.Item label="Replay ID">{selectedEvent.replayId || "-"}</Descriptions.Item>
-              <Descriptions.Item label="类型">{selectedEvent.eventType}</Descriptions.Item>
-              <Descriptions.Item label="时间">{formatDateTime(selectedEvent.occurredAt)}</Descriptions.Item>
-              <Descriptions.Item label="Environment">{selectedEvent.environment || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Release">{selectedEvent.release || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Dist">{selectedEvent.dist || resolvedEvent?.dist || "-"}</Descriptions.Item>
-            </Descriptions>
-            <Card title="Tags">
-              <JsonViewer value={safeParseJson(selectedEvent.tagsJson)} />
-            </Card>
-            <Card title="Payload">
-              <JsonViewer value={safeParseJson(eventRaw?.payloadJson || selectedEvent.payloadJson)} />
-            </Card>
-            <Card title="Resolved Stack">
-              {resolvedEvent?.resolvedStack ? (
-                <pre className="json-viewer">{resolvedEvent.resolvedStack}</pre>
-              ) : (
-                <Empty description="暂无还原后的堆栈" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              )}
-            </Card>
-            <Card title="Resolved Frames">
-              {resolvedEvent?.frames?.length ? (
-                <Space className="page-stack" direction="vertical" size={12}>
-                  {resolvedEvent.frames.map((frame, index) => (
-                    <Card
-                      key={`${frame.rawLine || "frame"}-${index}`}
-                      size="small"
-                      title={buildFrameTitle(frame, index)}
-                    >
-                      <Space className="page-stack" direction="vertical" size={8}>
-                        <Typography.Text type="secondary">
-                          {frame.artifact || frame.generatedFile || "未匹配到 artifact"}
-                        </Typography.Text>
-                        {frame.sourceContext?.length ? (
-                          <pre className="json-viewer">{formatSourceContext(frame)}</pre>
-                        ) : (
-                          <Typography.Text type="secondary">暂无源码上下文</Typography.Text>
-                        )}
-                      </Space>
-                    </Card>
-                  ))}
-                </Space>
-              ) : (
-                <Empty description="暂无逐帧还原数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              )}
-            </Card>
-          </Space>
-        ) : null}
-      </Drawer>
-
-      <Drawer
-        destroyOnHidden
+      <EventDetailDrawer
+        dateRange={dateRange}
+        eventId={selectedEventId}
+        onClose={() => setSelectedEventId(undefined)}
+        onEventFilter={mergeEventFilters}
+        onOpenEvent={setSelectedEventId}
+        onOpenTrace={openTrace}
+        projectId={currentProjectId}
+      />
+      <IssueDetailDrawer
+        dateRange={dateRange}
+        issue={selectedIssue}
+        onChanged={() => void loadPageData()}
         onClose={() => setSelectedIssue(null)}
-        open={Boolean(selectedIssue)}
-        title="Issue 详情"
-        width={720}
-      >
-        {selectedIssue ? (
-          <Space className="page-stack" direction="vertical" size={16}>
-            <Space>
-              <Button onClick={() => void updateIssueStatus(selectedIssue.id, "OPEN").then(loadPageData)}>标记 Open</Button>
-              <Button onClick={() => void updateIssueStatus(selectedIssue.id, "RESOLVED").then(loadPageData)}>标记 Resolved</Button>
-              <Button onClick={() => void updateIssueAssignment(selectedIssue.id, "owner@team", "HIGH").then(loadPageData)}>
-                指派 HIGH
-              </Button>
-            </Space>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="标题" span={2}>{selectedIssue.title}</Descriptions.Item>
-              <Descriptions.Item label="类型">{selectedIssue.issueType}</Descriptions.Item>
-              <Descriptions.Item label="状态"><IssueStatusTag value={selectedIssue.status} /></Descriptions.Item>
-              <Descriptions.Item label="优先级"><PriorityTag value={selectedIssue.priority} /></Descriptions.Item>
-              <Descriptions.Item label="出现次数">{selectedIssue.occurrenceCount}</Descriptions.Item>
-              <Descriptions.Item label="资源 URL" span={2}>{selectedIssue.resourceUrl || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Fingerprint" span={2}>{selectedIssue.fingerprint}</Descriptions.Item>
-            </Descriptions>
-            {issueReplayId ? <ReplayPanel replayId={issueReplayId} /> : null}
-            <Card title="趋势">
-              {issueTrend.length === 0 ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              ) : (
-                <Table
-                  columns={[
-                    { dataIndex: "bucket", key: "bucket", title: "Bucket" },
-                    { dataIndex: "totalCount", key: "totalCount", title: "Count" }
-                  ]}
-                  dataSource={issueTrend}
-                  pagination={false}
-                  rowKey="bucket"
-                  size="small"
-                />
-              )}
-            </Card>
-            <Card title="关联事件">
-              <Table
-                columns={[
-                  { dataIndex: "eventType", key: "eventType", title: "类型" },
-                  {
-                    dataIndex: "replayId",
-                    key: "replayId",
-                    render: value => value || "-",
-                    title: "Replay ID"
-                  },
-                  {
-                    dataIndex: "message",
-                    key: "message",
-                    render: (_, record) => record.message || record.url || "-",
-                    title: "摘要"
-                  },
-                  {
-                    dataIndex: "occurredAt",
-                    key: "occurredAt",
-                    render: value => formatDateTime(value),
-                    title: "时间"
-                  }
-                ]}
-                dataSource={issueEvents}
-                pagination={{
-                  current: issueEventsPageNum,
-                  onChange: (page, pageSize) => {
-                    void inspectIssue(selectedIssue, page, pageSize)
-                  },
-                  pageSize: issueEventsPageSize,
-                  showSizeChanger: true,
-                  total: issueEventsTotal
-                }}
-                rowKey="id"
-                size="small"
-              />
-            </Card>
-          </Space>
-        ) : null}
-      </Drawer>
+        onEventFilter={mergeEventFilters}
+        onOpenEvent={setSelectedEventId}
+        onOpenTrace={openTrace}
+        projectId={currentProjectId}
+      />
     </Space>
   )
 }
 
-function buildFrameTitle(frame: SourceMapFrame, index: number) {
-  if (frame.originalSource && frame.originalLine && frame.originalColumn) {
-    return `#${index + 1} ${frame.originalSource}:${frame.originalLine}:${frame.originalColumn}`
-  }
-  if (frame.generatedFile && frame.generatedLine && frame.generatedColumn) {
-    return `#${index + 1} ${frame.generatedFile}:${frame.generatedLine}:${frame.generatedColumn}`
-  }
-  return `#${index + 1} Frame`
+function readEventFilters(params: URLSearchParams): EventReportFilters {
+  return normalizeEventFilters(Object.fromEntries(eventFilterKeys.map(key => [key, params.get(key) || undefined])))
 }
 
-function formatSourceContext(frame: SourceMapFrame) {
-  return (frame.sourceContext || [])
-    .map(line => `${line.focus ? ">" : " "} ${String(line.lineNumber).padStart(4, " ")} | ${line.content}`)
-    .join("\n")
+function readIssueFilters(params: URLSearchParams): IssueReportFilters {
+  return normalizeIssueFilters({
+    issueType: params.get("issueType") || undefined,
+    keyword: params.get("issueKeyword") || undefined,
+    status: params.get("status") || undefined
+  })
+}
+
+function normalizeEventFilters(filters: EventReportFilters) {
+  return Object.fromEntries(
+    Object.entries(filters)
+      .map(([key, value]) => [key, value?.trim() || undefined])
+      .filter(([, value]) => value)
+  ) as EventReportFilters
+}
+
+function normalizeIssueFilters(filters: IssueReportFilters) {
+  return Object.fromEntries(
+    Object.entries(filters)
+      .map(([key, value]) => [key, value?.trim() || undefined])
+      .filter(([, value]) => value)
+  ) as IssueReportFilters
 }
