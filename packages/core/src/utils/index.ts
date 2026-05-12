@@ -1,3 +1,4 @@
+export { byteLength } from "./byteLength"
 export { matchesIgnoreRule } from "./matchesIgnoreRule"
 export { now } from "./now"
 export { safeStringify } from "./safeStringify"

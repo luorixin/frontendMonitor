@@ -4,7 +4,7 @@ import { recordBreadcrumb } from "../pipeline/breadcrumb"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../core/types"
-import { getTraceparent } from "../core/trace"
+import { createRequestSpan, getTraceparent } from "../core/trace"
 import {
   createMemoizedRequestBodyReader,
   normalizeCapturedRequestBody,
@@ -28,15 +28,19 @@ export function initFetchCapture(): void {
     input: RequestInfo | URL,
     init?: RequestInit
   ): Promise<Response> => {
-      const requestUrl = resolveRequestUrl(input)
-      const readRequestBody = createRequestBodyReader(input, init)
-      const tracedRequest = applyTraceparent(input, init)
+	      const requestUrl = resolveRequestUrl(input)
+	      const method = resolveMethod(input, init)
+	      const requestContentType = resolveRequestContentType(input, init)
+	      const readRequestBody = createRequestBodyReader(input, init)
+	      const requestSpan = createRequestSpan(`${method} ${requestUrl}`, {
+	        op: "http.client"
+	      })
+	      const tracedRequest = applyTraceparent(input, init, requestSpan?.spanId)
 
       if (matchesIgnoreRule(requestUrl, state.options?.ignoreUrls ?? [])) {
         return originalFetch.call(window, tracedRequest.input, tracedRequest.init)
       }
 
-    const method = resolveMethod(input, init)
     const start = now()
 
     try {
@@ -52,7 +56,10 @@ export function initFetchCapture(): void {
           enqueueEvent(createRequestPerformanceEvent({
             duration,
             method,
+            parentSpanId: requestSpan?.parentSpanId,
+            spanId: requestSpan?.spanId,
             status: response.status,
+            traceId: requestSpan?.traceId,
             transport: "fetch",
             url: requestUrl
           }))
@@ -73,8 +80,15 @@ export function initFetchCapture(): void {
             createRequestErrorEvent({
               duration,
               method,
-              requestBody: await readRequestBodySafely(readRequestBody, requestUrl),
+              parentSpanId: requestSpan?.parentSpanId,
+	              requestBody: await readRequestBodySafely(
+	                readRequestBody,
+	                requestUrl,
+	                requestContentType
+              ),
               status: response.status,
+              spanId: requestSpan?.spanId,
+              traceId: requestSpan?.traceId,
               transport: "fetch",
               url: requestUrl
             })
@@ -100,7 +114,14 @@ export function initFetchCapture(): void {
             errorMessage:
               error instanceof Error ? error.message : "Network request failed",
             method,
-            requestBody: await readRequestBodySafely(readRequestBody, requestUrl),
+            parentSpanId: requestSpan?.parentSpanId,
+	            requestBody: await readRequestBodySafely(
+	              readRequestBody,
+	              requestUrl,
+	              requestContentType
+            ),
+            spanId: requestSpan?.spanId,
+            traceId: requestSpan?.traceId,
             transport: "fetch",
             url: requestUrl
           })
@@ -114,15 +135,21 @@ export function initFetchCapture(): void {
 function createRequestPerformanceEvent(params: {
   duration: number
   method: string
+  parentSpanId?: string
+  spanId?: string
   status: number
+  traceId?: string
   transport: "fetch" | "xhr"
   url: string
 }): RequestPerformanceEventPayload {
   return {
     duration: params.duration,
     method: params.method,
+    parentSpanId: params.parentSpanId,
+    spanId: params.spanId,
     status: params.status,
     timestamp: now(),
+    traceId: params.traceId,
     transport: params.transport,
     type: "request_performance",
     url: params.url
@@ -156,12 +183,14 @@ function resolveRequestUrl(input: RequestInfo | URL): string {
 
 function applyTraceparent(
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
+  spanId?: string
 ): {
   input: RequestInfo | URL
   init?: RequestInit
 } {
-  const traceparent = getTraceparent()
+  const requestUrl = resolveRequestUrl(input)
+  const traceparent = getTraceparent(requestUrl, spanId)
   if (!traceparent) return { input, init }
 
   const headers = new Headers(
@@ -186,6 +215,18 @@ function applyTraceparent(
       headers
     }
   }
+}
+
+function resolveRequestContentType(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): string | undefined {
+  const initContentType = resolveContentType(init?.headers)
+  if (initContentType) return initContentType
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    return input.headers.get("content-type") ?? undefined
+  }
+  return undefined
 }
 
 function createRequestBodyReader(

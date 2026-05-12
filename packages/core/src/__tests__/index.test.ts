@@ -9,6 +9,8 @@ import {
   destroy,
   flush,
   flushSessionReplay,
+  getDiagnostics,
+  getTraceContext,
   getReplayId,
   getOptions,
   init,
@@ -21,7 +23,15 @@ import {
   setRelease,
   setTag,
   setUser,
-  track
+  addReplayEvent,
+  pauseReplay,
+  resumeReplay,
+  startReplay,
+  startSpan,
+  startTransaction,
+  stopReplay,
+  track,
+  withSpan
 } from "../index"
 import {
   FakeCompressionStream,
@@ -570,7 +580,13 @@ describe("frontend-monitor-core", () => {
         privacy: {
           blockClass: "fm-block",
           ignoreClass: "fm-ignore",
-          maskAllInputs: false
+          maskAllInputs: false,
+          maskInputOptions: { email: true },
+          maskTextClass: "fm-mask",
+          maskTextSelector: "[data-private]",
+          blockSelector: "[data-block]",
+          ignoreSelector: "[data-ignore]",
+          slimDOMOptions: { comment: true }
         },
         sample: {
           fullSessionRate: 1
@@ -581,10 +597,55 @@ describe("frontend-monitor-core", () => {
     expect(rrwebRecordMock).toHaveBeenCalledWith(
       expect.objectContaining({
         blockClass: "fm-block",
+        blockSelector: "[data-block]",
         ignoreClass: "fm-ignore",
-        maskAllInputs: false
+        ignoreSelector: "[data-ignore]",
+        maskAllInputs: false,
+        maskInputOptions: { email: true },
+        maskTextClass: "fm-mask",
+        maskTextSelector: "[data-private]",
+        slimDOMOptions: { comment: true }
       })
     )
+  })
+
+  it("controls replay recording and writes SDK events into the replay timeline", async () => {
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: false,
+        endpoint: "http://localhost:4318/replays",
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
+      }
+    })
+
+    expect(getReplayId()).toBeNull()
+    startReplay()
+    expect(getReplayId()).toBeTruthy()
+
+    addReplayEvent("checkout.step", { step: "submit" })
+    await flushSessionReplay()
+    expect(replayBodies[0]?.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            payload: { step: "submit" },
+            tag: "checkout.step"
+          })
+        })
+      ])
+    )
+
+    pauseReplay()
+    const pausedReplayId = getReplayId()
+    resumeReplay()
+    expect(getReplayId()).toBe(pausedReplayId)
+    await stopReplay({ flush: true })
+    expect(getReplayId()).toBeNull()
   })
 
   it("adds replay id to error payload base when session replay is enabled", async () => {
@@ -801,6 +862,100 @@ describe("frontend-monitor-core", () => {
     expect(payload?.events[0]?.type).toBe("js_error")
     expect(payload?.events[0]?.message).toBe("plain string")
     expect(payload?.events[1]?.message).toBe("typed error")
+  })
+
+  it("adds structured exception frames release dist and debug id to captured errors", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      debugId: "debug-id-1",
+      dist: "web",
+      dsn: "http://localhost:4318/collect",
+      release: "1.2.3"
+    })
+
+    const error = new Error("Checkout failed")
+    error.stack = [
+      "Error: Checkout failed",
+      "    at checkout (https://cdn.example.com/assets/app.js:10:20)",
+      "    at https://cdn.example.com/assets/vendor.js:30:40"
+    ].join("\n")
+
+    captureError(error, undefined, true)
+    await flush()
+
+    const event = sentPayloads[0]?.events[0]
+    expect(event?.exception).toMatchObject({
+      type: "Error",
+      value: "Checkout failed"
+    })
+    expect(event?.frames).toMatchObject([
+      {
+        colno: 20,
+        filename: "https://cdn.example.com/assets/app.js",
+        function: "checkout",
+        lineno: 10
+      },
+      {
+        colno: 40,
+        filename: "https://cdn.example.com/assets/vendor.js",
+        lineno: 30
+      }
+    ])
+    expect(event?.mechanism).toEqual({
+      handled: true,
+      type: "manual"
+    })
+    expect(event?.release).toBe("1.2.3")
+    expect(event?.dist).toBe("web")
+    expect(event?.debugId).toBe("debug-id-1")
+  })
+
+  it("captures error cause chains and filters known error noise", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      denyUrls: ["third-party.example"],
+      dsn: "http://localhost:4318/collect",
+      ignoreErrors: ["ResizeObserver loop limit exceeded"]
+    })
+
+    captureError("ResizeObserver loop limit exceeded", undefined, true)
+    await flush()
+    expect(sentPayloads).toHaveLength(0)
+
+    const denied = new Error("third party boom")
+    denied.stack = "Error: third party boom\n    at fn (https://third-party.example/lib.js:1:2)"
+    captureError(denied, undefined, true)
+    await flush()
+    expect(sentPayloads).toHaveLength(0)
+
+    const root = new Error("root cause")
+    const outer = new Error("outer cause") as Error & { cause?: unknown }
+    outer.cause = root
+    captureError(outer, undefined, true)
+    await flush()
+
+    expect(sentPayloads).toHaveLength(1)
+    expect(sentPayloads[0]?.events[0]?.causeChain).toMatchObject([
+      { message: "root cause", type: "Error" }
+    ])
   })
 
   it("flushes queued events with beacon on pagehide", async () => {
@@ -1116,7 +1271,11 @@ describe("frontend-monitor-core", () => {
         promiseRejection: false,
         routeChange: false
       },
-      dsn: "http://localhost:4318/collect"
+      dsn: "http://localhost:4318/collect",
+      requestBody: {
+        allowUrls: ["/bad-request"],
+        enabled: true
+      }
     })
 
     await window.fetch("http://localhost:3000/bad-request", {
@@ -1140,6 +1299,79 @@ describe("frontend-monitor-core", () => {
       phone: "[REDACTED]",
       token: "[REDACTED]"
     })
+  })
+
+  it("does not capture request bodies unless requestBody rules allow them", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: true,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect"
+    })
+
+    await window.fetch("http://localhost:3000/bad-request-default-body", {
+      body: JSON.stringify({ orderId: "order-1" }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    })
+    await flush()
+
+    expect(sentPayloads[0]?.events[0]?.requestBody).toBeUndefined()
+
+    destroy()
+    sentPayloads = []
+    setActiveSentPayloads(sentPayloads)
+
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: true,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      requestBody: {
+        allowUrls: ["/bad-request-allowed-body"],
+        contentTypes: ["application/json"],
+        enabled: true,
+        maxBytes: 128
+      }
+    })
+
+    await window.fetch("http://localhost:3000/bad-request-allowed-body", {
+      body: JSON.stringify({
+        orderId: "order-2",
+        token: "secret-token"
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    })
+    await flush()
+
+    expect(sentPayloads[0]?.events[0]?.requestBody).toEqual({
+      orderId: "order-2",
+      token: "[REDACTED]"
+    })
+
+    await window.fetch("http://localhost:3000/bad-request-denied-type", {
+      body: new URLSearchParams({ orderId: "order-3" }),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST"
+    })
+    await flush()
+
+    expect(sentPayloads[1]?.events[0]?.requestBody).toBeUndefined()
   })
 
   it("aggregates scoped duplicate errors into a single queued event", async () => {
@@ -1364,6 +1596,37 @@ describe("frontend-monitor-core", () => {
     expect(sentPayloads).toHaveLength(0)
   })
 
+  it("splits oversized payloads and tracks diagnostics for oversized single events", async () => {
+    init({
+      appName: "demo",
+      batchSize: 10,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        routeChange: false
+      },
+      dsn: "http://localhost:4318/collect",
+      maxPayloadBytes: 900
+    })
+
+    track("split-a", { value: "中文".repeat(12) })
+    track("split-b", { value: "中文".repeat(12) })
+    await flush()
+
+    expect(sentPayloads).toHaveLength(2)
+    expect(sentPayloads[0]?.events).toHaveLength(1)
+    expect(sentPayloads[1]?.events).toHaveLength(1)
+
+    track("too-large", { value: "中文".repeat(200) }, true)
+    await flush()
+
+    expect(sentPayloads).toHaveLength(2)
+    expect(getDiagnostics().droppedByPayloadSize).toBe(1)
+  })
+
   it("adds release dist environment tags contexts and bounded breadcrumbs to payload base", async () => {
     init({
       appName: "demo",
@@ -1455,7 +1718,11 @@ describe("frontend-monitor-core", () => {
         routeChange: false,
         xhrError: true
       },
-      dsn: "http://localhost:4318/collect"
+      dsn: "http://localhost:4318/collect",
+      requestBody: {
+        allowUrls: ["/xhr-bad-request"],
+        enabled: true
+      }
     })
 
     const xhr = new XMLHttpRequest()
@@ -1559,6 +1826,17 @@ describe("frontend-monitor-core", () => {
           }),
           type: "performance"
         })
+      ])
+    )
+
+    const webVitalEvents = sentPayloads
+      .flatMap(payload => payload.events)
+      .filter(event => event.type === "performance" && event.performanceType === "web_vital")
+
+    expect(webVitalEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metricName: "FCP", value: 55 }),
+        expect.objectContaining({ metricName: "TTFB", value: 30 })
       ])
     )
   })
@@ -1713,6 +1991,60 @@ describe("frontend-monitor-core", () => {
 
     expect(replayBodies).toHaveLength(1)
     expect(replayBodies[0]?.events).toHaveLength(1)
+  })
+
+  it("persists failed replay chunks and retries them after reinitialization", async () => {
+    fetchMock.mockImplementationOnce(async () => {
+      throw new Error("replay unavailable")
+    })
+
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        flushInterval: 100,
+        maxEvents: 2,
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
+      }
+    })
+
+    rrwebEmit?.({ type: 3, timestamp: 1000, data: { source: 1 } })
+    await flushSessionReplay()
+
+    await vi.waitFor(async () => {
+      expect(
+        await readAsyncQueue({
+          key: "__frontend_monitor_replay_failed__"
+        })
+      ).toHaveLength(1)
+    })
+
+    destroy()
+    init({
+      appName: "demo",
+      dsn: "http://localhost:4318/collect",
+      sessionReplay: {
+        enabled: true,
+        endpoint: "http://localhost:4318/replays",
+        mode: "full",
+        sample: {
+          fullSessionRate: 1
+        }
+      }
+    })
+    await flushSessionReplay()
+
+    expect(replayBodies).toHaveLength(1)
+    expect(
+      await readAsyncQueue({
+        key: "__frontend_monitor_replay_failed__"
+      })
+    ).toHaveLength(0)
   })
 
   it("compresses replay fetch payloads when CompressionStream is available", async () => {
@@ -1999,7 +2331,7 @@ describe("frontend-monitor-core", () => {
     expect(window.localStorage.getItem("__test_custom_transport_offline__")).toBeNull()
   })
 
-  it("does not propagate trace headers by default and does when enabled", async () => {
+  it("does not propagate trace headers by default and only propagates to allowed targets", async () => {
     init({
       appName: "demo",
       batchSize: 10,
@@ -2038,6 +2370,7 @@ describe("frontend-monitor-core", () => {
       trace: {
         enabled: true,
         propagateTraceparent: true,
+        propagationTargets: ["http://localhost:3000/traced-fetch"],
         sampleRate: 1
       }
     })
@@ -2054,13 +2387,63 @@ describe("frontend-monitor-core", () => {
     expect(sentPayloads.at(-1)?.base.traceId).toMatch(/^[0-9a-f]{32}$/)
     expect(sentPayloads.at(-1)?.base.spanId).toMatch(/^[0-9a-f]{16}$/)
 
+    await window.fetch("http://third-party.example/traced-fetch")
+    const thirdPartyFetchInit = fetchMock.mock.calls.at(-1)?.[1] as
+      | RequestInit
+      | undefined
+    expect(new Headers(thirdPartyFetchInit?.headers).get("traceparent")).toBeNull()
+
     const xhr = new XMLHttpRequest() as FakeXMLHttpRequest
-    xhr.open("GET", "http://localhost:3000/traced-xhr")
+    xhr.open("GET", "http://third-party.example/traced-xhr")
     xhr.send()
 
-    expect(xhr.requestHeaders.traceparent).toMatch(
-      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/
-    )
+    expect(xhr.requestHeaders.traceparent).toBeUndefined()
+  })
+
+  it("creates trace transactions spans and associates request performance events", async () => {
+    init({
+      appName: "demo",
+      batchSize: 1,
+      capture: {
+        click: false,
+        fetchError: false,
+        jsError: false,
+        pageView: false,
+        promiseRejection: false,
+        requestPerformance: true,
+        routeChange: false,
+        xhrError: false
+      },
+      dsn: "http://localhost:4318/collect",
+      trace: {
+        enabled: true,
+        propagateTraceparent: true,
+        propagationTargets: ["http://localhost:3000/api"],
+        sampleRate: 1
+      }
+    })
+
+    const transaction = startTransaction("checkout", { op: "navigation" })
+    const child = startSpan("submit", { op: "ui.action" })
+    expect(getTraceContext()).toMatchObject({
+      spanId: child.spanId,
+      traceId: transaction.traceId
+    })
+
+    await withSpan(child, async () => {
+      await window.fetch("http://localhost:3000/api/orders")
+    })
+    await flush()
+
+    child.finish()
+    transaction.finish()
+
+    const requestEvent = sentPayloads
+      .flatMap(payload => payload.events)
+      .find(event => event.type === "request_performance")
+    expect(requestEvent?.traceId).toBe(transaction.traceId)
+    expect(requestEvent?.spanId).toMatch(/^[0-9a-f]{16}$/)
+    expect(requestEvent?.parentSpanId).toBe(child.spanId)
   })
 
   it("destroy removes exit listeners and clears pending flush timers", async () => {

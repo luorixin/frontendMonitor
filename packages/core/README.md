@@ -68,7 +68,12 @@ track("checkout_submit")
 - `addIntegration(integration)`
 - `flush()`
 - `flushSessionReplay()`
+- `getDiagnostics()`
+- `getTraceContext()`
 - `getReplayId()`
+- `startTransaction(name, options?)`
+- `startSpan(name, options?)`
+- `withSpan(span, callback)`
 - `stopReplay()`
 - `sendLocal()`
 - `getOptions()`
@@ -165,7 +170,11 @@ addIntegration({
 | --- | --- | --- | --- |
 | `appVersion` | `string` | 无 | 应用版本号，适合做版本维度筛选。 |
 | `userId` | `string` | 无 | 当前用户标识，会写入 `base.userId`。也可以在初始化后通过 `setUser()` 动态设置。 |
+| `debugId` | `string` | 无 | 构建产物调试标识，会进入 `base.debugId` 和错误事件，供 Source Map 关联使用。 |
 | `debug` | `boolean` | `false` | 开启后会在控制台打印采样丢弃、发送成功/失败、离线丢弃等调试日志。 |
+| `ignoreErrors` | `Array<string \| RegExp>` | `[]` | 命中后丢弃对应 JS 错误或 Promise rejection。 |
+| `allowUrls` | `Array<string \| RegExp>` | `[]` | 配置后只有错误来源 URL 命中时才上报错误。 |
+| `denyUrls` | `Array<string \| RegExp>` | `[]` | 命中错误来源 URL 时丢弃错误，优先级高于 allow。 |
 
 ### 队列与发送
 
@@ -181,7 +190,7 @@ addIntegration({
 | `offlineQueueKey` | `string` | `__frontend_monitor_offline__` | 自动离线重试队列的逻辑 key。SDK 会优先写入 IndexedDB，不可用时回退到 `localStorage`。 |
 | `retryMaxAttempts` | `number` | `3` | 自动重试最大次数。 |
 | `retryBaseDelay` | `number` | `1000` | 自动重试基础退避时间，单位毫秒。 |
-| `maxPayloadBytes` | `number` | `65536` | 单次 payload 最大字节数，超出后不再尝试传输。 |
+| `maxPayloadBytes` | `number` | `65536` | 单次 payload 最大字节数，按 UTF-8 字节计算；批量 payload 超出时会尝试拆批，单事件仍超限才丢弃。 |
 | `maxOfflinePayloads` | `number` | `50` | 自动离线重试队列最多保留的 payload 数。 |
 | `maxBreadcrumbs` | `number` | `50` | payload 中最多携带的 breadcrumb 数。 |
 | `compression` | `boolean \| CompressionOptions` | `{ algorithm: "gzip", eventPayloads: false, sessionReplay: true }` | 显式控制发送前是否尝试压缩。布尔值会同时作用于普通 payload 和 replay chunk。 |
@@ -244,13 +253,36 @@ addIntegration({
 
 SDK 会自动把路由、点击、失败请求和 `console.error` 写入 breadcrumbs，随下一次 payload 上报。
 
+### 错误诊断字段
+
+错误事件会保留原始 `message/stack/source`，同时尽量补充结构化诊断字段：
+
+- `exception`: 错误类型、错误消息和结构化 stacktrace。
+- `frames`: 从 Chrome/Edge、Firefox、Safari 常见 stack 格式解析出的文件、函数、行列号。
+- `mechanism`: 错误来源，手动 `captureError()` 为 `manual` 且 `handled=true`，全局错误和未处理 Promise 为未处理错误。
+- `causeChain`: `Error.cause` 和 `AggregateError.errors` 的简化链路。
+- `release/dist/debugId`: 与当前初始化配置一致，供后端 Source Map 关联。
+
+### 请求体采集
+
+失败请求默认不会携带请求体。需要排查特定接口时，显式开启 `requestBody` 并使用 URL 与 content-type 规则收窄采集范围：
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `requestBody.enabled` | `boolean` | `false` | 是否允许采集失败请求的请求体。 |
+| `requestBody.allowUrls` | `Array<string \| RegExp>` | `[]` | 允许采集请求体的 URL 规则；为空时不按 URL 放宽限制。 |
+| `requestBody.denyUrls` | `Array<string \| RegExp>` | `[]` | 禁止采集请求体的 URL 规则，优先级高于 allow。 |
+| `requestBody.contentTypes` | `string[]` | 常见 JSON、表单、文本类型 | 只有请求 `content-type` 命中时才读取请求体。 |
+| `requestBody.maxBytes` | `number` | `2048` | 单个归一化请求体最大字节数，超出后不写入事件。 |
+| `requestBody.captureHeaders` | `boolean` | `false` | 预留字段，后续用于显式采集请求头。 |
+
 ### 脱敏配置
 
 默认会对 token、手机号、身份证号、密码类字段和输入框内容做脱敏。可以通过 `sanitize` 追加业务规则：
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `sanitize.enabled` | `boolean` | `true` | 是否启用发送前自动脱敏。关闭后 `beforeSend` 会收到原始 payload。 |
+| `sanitize.enabled` | `boolean` | `true` | 是否启用发送前自动脱敏。默认情况下 `beforeSend` 收到的是已脱敏 payload；关闭后 `beforeSend` 会收到原始 payload。 |
 | `sanitize.sensitiveKeys` | `string[]` | `[]` | 追加需要整体替换的字段名，和内置敏感字段合并。 |
 | `sanitize.textPatterns` | `RegExp[]` | `[]` | 追加需要在字符串中替换的文本规则。 |
 | `sanitize.redactValue` | `string` | `[REDACTED]` | 字段整体替换和自定义文本规则的替换值。 |
@@ -288,17 +320,44 @@ init({
 
 ### Trace Context
 
-`trace` 默认关闭。开启后 SDK 会生成 `base.traceId` 和 `base.spanId`；如果同时开启 `propagateTraceparent`，会为非忽略的 `fetch/xhr` 请求注入 W3C `traceparent` header。
+`trace` 默认关闭。开启后 SDK 会生成 `base.traceId` 和 `base.spanId`；如果同时开启 `propagateTraceparent`，只会为 same-origin 或命中 `propagationTargets` 的 `fetch/xhr` 请求注入 W3C `traceparent` header，避免把 trace header 发送到未知第三方域名。
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `trace.enabled` | `boolean` | `false` | 是否生成 trace 上下文。 |
 | `trace.sampleRate` | `number` | `1` | trace 上下文采样率，范围会被钳制到 `0 ~ 1`。 |
 | `trace.propagateTraceparent` | `boolean` | `false` | 是否向 `fetch/xhr` 请求注入 `traceparent`。 |
+| `trace.propagationTargets` | `Array<string \| RegExp>` | `[]` | 允许跨域传播 `traceparent` 的目标；same-origin 请求无需配置。 |
+| `trace.tracesSampler` | `(context) => number \| boolean` | 无 | 动态 trace 采样函数，返回布尔值或 `0 ~ 1` 采样率。 |
+
+可以用轻量 span API 把业务操作与请求事件关联起来：
+
+```ts
+const transaction = startTransaction("checkout", { op: "navigation" })
+const span = startSpan("submit", { op: "ui.action" })
+
+await withSpan(span, async () => {
+  await fetch("/api/orders")
+})
+
+span.finish()
+transaction.finish()
+```
+
+### SDK 自诊断
+
+`getDiagnostics()` 会返回 SDK 运行期计数快照，便于接入方确认采样、队列、payload 大小和离线重试行为：
+
+```ts
+const diagnostics = getDiagnostics()
+console.log(diagnostics.droppedByPayloadSize)
+```
+
+当前字段包括：`droppedBySampling`、`droppedByQueueOverflow`、`droppedByPayloadSize`、`offlineQueued`、`retrySucceeded`、`retryExhausted`。
 
 ### Web Vitals 发送时机
 
-- `FCP / TTFB` 会在页面加载完成后尽快发送。
+- `FCP / TTFB` 会在页面加载完成后以 `performanceType: "web_vital"` 单独发送，同时仍保留 navigation metrics。
 - `LCP / CLS / INP` 会在页面隐藏、页面退出，或最多约 10 秒后的兜底 flush 时发送。
 - SPA soft navigation 的 `LCP / CLS / INP` 也会在路由切换结束后进入同样的兜底 flush。
 
@@ -339,7 +398,13 @@ init({
 | `errorLinked.resourceError.urlPatterns` | `[]` | `resource_error` 只有命中这些字符串或正则时才触发 replay。匹配目标是结构化的 `resourceUrl` 字段。 |
 | `privacy.maskAllInputs` | `true` | 是否对输入框内容做 rrweb 级别脱敏。 |
 | `privacy.blockClass` | `""` | 透传给 rrweb 的 `blockClass`。 |
+| `privacy.blockSelector` | `""` | 透传给 rrweb 的 `blockSelector`。 |
 | `privacy.ignoreClass` | `""` | 透传给 rrweb 的 `ignoreClass`。 |
+| `privacy.ignoreSelector` | `""` | 透传给 rrweb 的 `ignoreSelector`。 |
+| `privacy.maskTextClass` | `""` | 透传给 rrweb 的文本脱敏 class。 |
+| `privacy.maskTextSelector` | `""` | 透传给 rrweb 的文本脱敏 selector。 |
+| `privacy.maskInputOptions` | `{}` | 透传给 rrweb 的输入类型脱敏配置。 |
+| `privacy.slimDOMOptions` | `{}` | 透传给 rrweb 的 DOM 精简配置。 |
 | `canvas.enabled` | `false` | 是否开启 canvas 相关录制配置。 |
 | `canvas.recordCanvas` | `false` | 是否让 rrweb 录制 canvas。 |
 | `canvas.samplingInterval` | `100` | canvas 采样间隔，单位毫秒。 |
@@ -349,8 +414,9 @@ init({
 - `base.replayId` 会自动附带到普通事件 payload
 - `captureError()` 产生的错误事件可以在后端关联回放
 - 可通过 `getReplayId()` 获取当前会话 replay 标识
-- 可通过 `flushSessionReplay()` 和 `stopReplay()` 主动控制 replay
-- replay chunk 发送失败会暂存在内存重试队列，后续 `flushSessionReplay()`、页面退出或网络恢复时会再次尝试。
+- 可通过 `startReplay()`、`pauseReplay()`、`resumeReplay()`、`stopReplay({ flush })` 主动控制 replay
+- 可通过 `addReplayEvent(tag, payload)` 写入 SDK 自定义 timeline 事件
+- replay chunk 发送失败会优先写入 IndexedDB 持久化队列，后续 `flushSessionReplay()`、页面退出或重新初始化后会再次尝试。
 
 示例：
 

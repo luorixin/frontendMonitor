@@ -87,7 +87,7 @@ export function flushSoftNavigationVitals(): void {
 }
 
 type WebVitalRating = "good" | "needs-improvement" | "poor"
-type WebVitalMetricName = "CLS" | "INP" | "LCP"
+type WebVitalMetricName = "CLS" | "FCP" | "INP" | "LCP" | "TTFB"
 
 export function initWebVitalObservers(): void {
   const supportedEntryTypes = window.PerformanceObserver?.supportedEntryTypes ?? []
@@ -197,7 +197,7 @@ export function initWebVitalObservers(): void {
   })
 }
 
-function createWebVitalEvent(
+export function createWebVitalEvent(
   metricName: WebVitalMetricName,
   value: number,
   navigationType?: string,
@@ -226,11 +226,13 @@ function resolveWebVitalRating(
   metricName: WebVitalMetricName,
   value: number
 ): WebVitalRating {
-  const thresholds = {
-    CLS: [0.1, 0.25],
-    INP: [200, 500],
-    LCP: [2500, 4000]
-  } satisfies Record<WebVitalMetricName, [number, number]>
+	  const thresholds = {
+	    CLS: [0.1, 0.25],
+	    FCP: [1800, 3000],
+	    INP: [200, 500],
+	    LCP: [2500, 4000],
+	    TTFB: [800, 1800]
+	  } satisfies Record<WebVitalMetricName, [number, number]>
 
   const [goodThreshold, poorThreshold] = thresholds[metricName]
   if (value <= goodThreshold) {

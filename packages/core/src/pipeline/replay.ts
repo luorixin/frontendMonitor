@@ -2,6 +2,7 @@ import { encodeJSONRequestBody } from "./compression"
 import { record } from "rrweb"
 import { SDK_VERSION } from "../core/config"
 import { addCleanup, clearTimer, state } from "../core/context"
+import { appendAsyncQueue, clearAsyncQueue, readAsyncQueue } from "../storage/queueStore"
 import type {
   ConsoleErrorEventPayload,
   MonitorEvent,
@@ -13,6 +14,7 @@ import type {
 import { matchesIgnoreRule, now, safeStringify, uuid } from "../utils"
 
 const REPLAY_BEACON_LIMIT = 128 * 1024
+const REPLAY_FAILED_QUEUE_KEY = "__frontend_monitor_replay_failed__"
 
 export function initSessionReplay(): void {
   const options = state.options?.sessionReplay
@@ -35,15 +37,27 @@ export function initSessionReplay(): void {
 
   const stopHandler = record({
     blockClass: options.privacy.blockClass || undefined,
+    blockSelector: options.privacy.blockSelector || undefined,
     emit(event) {
       enqueueReplayEvent(event)
     },
     ignoreClass: options.privacy.ignoreClass || undefined,
+    ignoreSelector: options.privacy.ignoreSelector || undefined,
     maskAllInputs: options.privacy.maskAllInputs,
+    maskInputOptions:
+      Object.keys(options.privacy.maskInputOptions).length > 0
+        ? options.privacy.maskInputOptions
+        : undefined,
+    maskTextClass: options.privacy.maskTextClass || undefined,
+    maskTextSelector: options.privacy.maskTextSelector || undefined,
     recordCanvas: options.canvas.enabled && options.canvas.recordCanvas,
     sampling:
       options.canvas.enabled && options.canvas.recordCanvas
         ? { canvas: options.canvas.samplingInterval }
+        : undefined,
+    slimDOMOptions:
+      Object.keys(options.privacy.slimDOMOptions).length > 0
+        ? options.privacy.slimDOMOptions
         : undefined
   } as Parameters<typeof record>[0])
   state.replayStop = stopHandler || null
@@ -62,8 +76,51 @@ export function stopSessionReplay(): void {
   state.replayStop = null
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
   state.replayCaptureUntil = 0
+  state.replayId = null
   state.replayRingBuffer = []
   state.replayQueue = []
+}
+
+export function startSessionReplay(): void {
+  if (!state.options) return
+  state.options.sessionReplay.enabled = true
+  initSessionReplay()
+}
+
+export function pauseSessionReplay(): void {
+  state.replayStop?.()
+  state.replayStop = null
+}
+
+export function resumeSessionReplay(): void {
+  if (!state.options?.sessionReplay.enabled || state.replayStop) return
+  const replayId = state.replayId
+  initSessionReplay()
+  if (replayId) {
+    state.replayId = replayId
+  }
+}
+
+export function addReplayEvent(
+  tag: string,
+  payload?: Record<string, unknown>
+): void {
+  enqueueReplayEvent({
+    data: {
+      payload,
+      tag
+    },
+    timestamp: now(),
+    type: 5
+  })
+}
+
+export function recordReplayMonitorEvent(event: MonitorEvent): void {
+  addReplayEvent("monitor.event", {
+    message: "message" in event ? event.message : undefined,
+    type: event.type,
+    url: event.url
+  })
 }
 
 export function scheduleReplayFlush(): void {
@@ -119,6 +176,7 @@ async function flushReplayQueueInternal(forceBeacon: boolean): Promise<void> {
   if (!state.options?.sessionReplay.enabled || !state.replayId) return
 
   state.replayFlushTimer = clearTimer(state.replayFlushTimer)
+  await hydrateReplayTransportQueue()
   await flushReplayTransportQueue(forceBeacon)
 
   if (state.replayQueue.length === 0) return
@@ -138,6 +196,7 @@ async function flushReplayQueueInternal(forceBeacon: boolean): Promise<void> {
   const result = await sendReplayChunk(finalPayload, forceBeacon)
   if (!result.success) {
     state.replayTransportQueue.push(finalPayload)
+    await persistReplayChunk(finalPayload)
   }
 
   if (state.options.sessionReplay.mode === "error-linked") {
@@ -162,6 +221,38 @@ async function flushReplayTransportQueue(forceBeacon: boolean): Promise<void> {
   }
 
   state.replayTransportQueue.unshift(...remaining)
+  if (remaining.length === 0) {
+    await clearAsyncQueue(REPLAY_FAILED_QUEUE_KEY)
+  }
+}
+
+async function hydrateReplayTransportQueue(): Promise<void> {
+  if (state.replayTransportQueue.length > 0) return
+  const persisted = await readAsyncQueue({
+    key: REPLAY_FAILED_QUEUE_KEY,
+    validate: isReplayChunkPayload
+  })
+  if (persisted.length > 0) {
+    state.replayTransportQueue.unshift(...persisted)
+  }
+}
+
+function persistReplayChunk(payload: ReplayChunkPayload): Promise<boolean> {
+  return appendAsyncQueue(payload, {
+    key: REPLAY_FAILED_QUEUE_KEY,
+    maxEntries: 50,
+    validate: isReplayChunkPayload
+  })
+}
+
+function isReplayChunkPayload(value: unknown): value is ReplayChunkPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "replayId" in value &&
+    "events" in value &&
+    Array.isArray((value as { events?: unknown }).events)
+  )
 }
 
 function buildReplayChunkPayload(

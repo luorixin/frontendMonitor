@@ -25,7 +25,78 @@ export type SanitizeOptions = {
 export type TraceOptions = {
   enabled?: boolean
   propagateTraceparent?: boolean
+  propagationTargets?: Array<string | RegExp>
   sampleRate?: number
+  tracesSampler?: (context: TraceSamplingContext) => number | boolean
+}
+
+export type TraceSamplingContext = {
+  appName: string
+  route: string
+  url: string
+}
+
+export type TraceSpanOptions = {
+  data?: Record<string, unknown>
+  op?: string
+  parentSpanId?: string
+}
+
+export type TraceSpan = {
+  data?: Record<string, unknown>
+  endTime?: number
+  finish: () => void
+  name: string
+  op?: string
+  parentSpanId?: string
+  spanId: string
+  startChild: (name: string, options?: Omit<TraceSpanOptions, "parentSpanId">) => TraceSpan
+  startTime: number
+  traceId: string
+}
+
+export type RequestBodyOptions = {
+  allowUrls?: Array<string | RegExp>
+  captureHeaders?: boolean
+  contentTypes?: string[]
+  denyUrls?: Array<string | RegExp>
+  enabled?: boolean
+  maxBytes?: number
+}
+
+export type StackFrame = {
+  colno?: number
+  filename?: string
+  function?: string
+  lineno?: number
+}
+
+export type ExceptionInfo = {
+  stacktrace?: {
+    frames: StackFrame[]
+  }
+  type: string
+  value: string
+}
+
+export type ErrorMechanism = {
+  handled: boolean
+  type: "manual" | "onerror" | "unhandledrejection"
+}
+
+export type CauseInfo = {
+  message: string
+  stack?: string
+  type: string
+}
+
+export type DiagnosticsSnapshot = {
+  droppedByPayloadSize: number
+  droppedByQueueOverflow: number
+  droppedBySampling: number
+  offlineQueued: number
+  retryExhausted: number
+  retrySucceeded: number
 }
 
 export type CompressionAlgorithm = "gzip"
@@ -122,7 +193,13 @@ export type SessionReplayOptions = {
   privacy?: {
     maskAllInputs?: boolean
     blockClass?: string
+    blockSelector?: string
     ignoreClass?: string
+    ignoreSelector?: string
+    maskInputOptions?: Record<string, boolean>
+    maskTextClass?: string
+    maskTextSelector?: string
+    slimDOMOptions?: Record<string, boolean>
   }
   canvas?: {
     enabled?: boolean
@@ -139,6 +216,7 @@ export type MonitorOptions = {
   appVersion?: string
   userId?: string
   dist?: string
+  debugId?: string
   sampleRate?: number
   batchSize?: number
   flushInterval?: number
@@ -146,6 +224,9 @@ export type MonitorOptions = {
   timeout?: number
   debug?: boolean
   ignoreUrls?: Array<string | RegExp>
+  allowUrls?: Array<string | RegExp>
+  denyUrls?: Array<string | RegExp>
+  ignoreErrors?: Array<string | RegExp>
   capture?: CaptureOptions
   localization?: boolean
   localizationKey?: string
@@ -165,6 +246,7 @@ export type MonitorOptions = {
   sanitize?: SanitizeOptions
   scopeError?: boolean
   trace?: TraceOptions
+  requestBody?: RequestBodyOptions
   compression?: boolean | CompressionOptions
   transport?: TransportOptions
   integrations?: MonitorIntegration[]
@@ -179,6 +261,7 @@ export type ResolvedMonitorOptions = {
   appVersion?: string
   userId?: string
   dist?: string
+  debugId?: string
   sampleRate: number
   batchSize: number
   flushInterval: number
@@ -186,6 +269,9 @@ export type ResolvedMonitorOptions = {
   timeout: number
   debug: boolean
   ignoreUrls: Array<string | RegExp>
+  allowUrls: Array<string | RegExp>
+  denyUrls: Array<string | RegExp>
+  ignoreErrors: Array<string | RegExp>
   capture: Required<CaptureOptions>
   localization: boolean
   localizationKey: string
@@ -231,11 +317,17 @@ export type ResolvedMonitorOptions = {
       triggerOn: MonitorEvent["type"][]
     }
     mode: "full" | "error-linked"
-    privacy: {
-      blockClass: string
-      ignoreClass: string
-      maskAllInputs: boolean
-    }
+	    privacy: {
+	      blockClass: string
+	      blockSelector: string
+	      ignoreClass: string
+	      ignoreSelector: string
+	      maskAllInputs: boolean
+	      maskInputOptions: Record<string, boolean>
+	      maskTextClass: string
+	      maskTextSelector: string
+	      slimDOMOptions: Record<string, boolean>
+	    }
     sample: {
       errorSessionRate: number
       fullSessionRate: number
@@ -243,7 +335,10 @@ export type ResolvedMonitorOptions = {
   }
   sanitize: Required<SanitizeOptions>
   scopeError: boolean
-  trace: Required<TraceOptions>
+  trace: Required<Omit<TraceOptions, "tracesSampler">> & {
+    tracesSampler?: TraceOptions["tracesSampler"]
+  }
+  requestBody: Required<RequestBodyOptions>
   compression: Required<CompressionOptions>
   transport?: TransportOptions
   integrations: MonitorIntegration[]
@@ -258,6 +353,7 @@ export type BasePayload = {
   deviceId: string
   userId?: string
   dist?: string
+  debugId?: string
   sessionId: string
   pageId: string
   url: string
@@ -266,6 +362,11 @@ export type BasePayload = {
   viewport: {
     width: number
     height: number
+  }
+  schemaVersion?: string
+  sdk?: {
+    name: string
+    version: string
   }
   sdkVersion: string
   environment?: string
@@ -276,10 +377,12 @@ export type BasePayload = {
   replayId?: string
   traceId?: string
   spanId?: string
+  parentSpanId?: string
   timestamp: number
 }
 
 export type BaseEvent = {
+  eventId?: string
   replayId?: string
   timestamp: number
   url: string
@@ -293,7 +396,16 @@ export type CustomEventPayload = BaseEvent & {
 
 export type ErrorEventPayload = BaseEvent & {
   type: "js_error" | "promise_rejection"
+  causeChain?: CauseInfo[]
+  componentStack?: string
+  debugId?: string
+  dist?: string
+  exception?: ExceptionInfo
+  fingerprint?: string
+  frames?: StackFrame[]
+  mechanism?: ErrorMechanism
   message: string
+  release?: string
   stack?: string
   source?: string
   scopeCount?: number
@@ -306,6 +418,7 @@ export type RequestEventPayload = BaseEvent & {
   status?: number
   duration: number
   errorMessage?: string
+  requestHeaders?: Record<string, string>
   requestBody?: unknown
   transport: "fetch" | "xhr"
   url: string

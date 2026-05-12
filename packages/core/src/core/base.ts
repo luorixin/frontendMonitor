@@ -17,11 +17,17 @@ export function buildBasePayload(): BasePayload {
     contexts: Object.keys(state.contexts).length > 0 ? { ...state.contexts } : undefined,
     deviceId: state.deviceId,
     dist: options.dist,
+    debugId: options.debugId,
     environment: options.environment,
     pageId: state.pageId,
     replayId: state.replayId ?? undefined,
     release: options.release,
     sdkVersion: SDK_VERSION,
+    schemaVersion: "1.0",
+    sdk: {
+      name: "frontend-monitor-core",
+      version: SDK_VERSION
+    },
     sessionId: state.sessionId,
     tags: Object.keys(state.tags).length > 0 ? { ...state.tags } : undefined,
     timestamp: now(),

@@ -4,7 +4,7 @@ import { enqueueEvent } from "../pipeline/queue"
 import { matchesIgnoreRule, now } from "../utils"
 import { createRequestErrorEvent } from "./request-event"
 import type { RequestPerformanceEventPayload } from "../core/types"
-import { getTraceparent } from "../core/trace"
+import { createRequestSpan, getTraceparent } from "../core/trace"
 import {
   createMemoizedRequestBodyReader,
   normalizeCapturedRequestBody,
@@ -81,6 +81,9 @@ export function initXHRCapture(): void {
 
     const startedAt = now()
     let terminalErrorMessage: string | undefined
+    const requestSpan = createRequestSpan(`${meta.method} ${meta.url}`, {
+      op: "http.client"
+    })
     meta.requestBodyReader = createMemoizedRequestBodyReader(() =>
       normalizeCapturedRequestBody(args[0], meta.headers["content-type"])
     )
@@ -122,16 +125,20 @@ export function initXHRCapture(): void {
           type: "request"
         })
         enqueueEvent(
-          createRequestErrorEvent({
-            duration,
-            errorMessage: terminalErrorMessage,
-            method: meta.method,
-            requestBody: await readRequestBodySafely(
-              meta.requestBodyReader,
-              meta.url
-            ),
-            status,
-            transport: "xhr",
+	          createRequestErrorEvent({
+	            duration,
+	            errorMessage: terminalErrorMessage,
+	            method: meta.method,
+	            parentSpanId: requestSpan?.parentSpanId,
+	            requestBody: await readRequestBodySafely(
+	              meta.requestBodyReader,
+	              meta.url,
+	              meta.headers["content-type"]
+	            ),
+	            status,
+	            spanId: requestSpan?.spanId,
+	            traceId: requestSpan?.traceId,
+	            transport: "xhr",
             url: meta.url
           })
         )
@@ -139,8 +146,11 @@ export function initXHRCapture(): void {
         const perfEvent: RequestPerformanceEventPayload = {
           duration,
           method: meta.method,
+          parentSpanId: requestSpan?.parentSpanId,
+          spanId: requestSpan?.spanId,
           status,
           timestamp: now(),
+          traceId: requestSpan?.traceId,
           transport: "xhr",
           type: "request_performance",
           url: meta.url
@@ -154,7 +164,7 @@ export function initXHRCapture(): void {
     xhr.addEventListener("abort", onAbort)
     xhr.addEventListener("loadend", onLoadEnd)
 
-    const traceparent = getTraceparent()
+    const traceparent = getTraceparent(meta.url, requestSpan?.spanId)
     if (traceparent) {
       xhr.setRequestHeader("traceparent", traceparent)
     }

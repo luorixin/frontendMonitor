@@ -1,6 +1,7 @@
 import type {
   CompressionOptions,
   MonitorOptions,
+  RequestBodyOptions,
   ResolvedMonitorOptions,
   SanitizeOptions,
   SessionReplayOptions
@@ -65,8 +66,14 @@ const DEFAULT_SESSION_REPLAY = {
   mode: "error-linked",
   privacy: {
     blockClass: "",
+    blockSelector: "",
     ignoreClass: "",
-    maskAllInputs: true
+    ignoreSelector: "",
+    maskAllInputs: true,
+    maskInputOptions: {},
+    maskTextClass: "",
+    maskTextSelector: "",
+    slimDOMOptions: {}
   },
   sample: {
     errorSessionRate: 1,
@@ -85,8 +92,23 @@ const DEFAULT_SANITIZE = {
 const DEFAULT_TRACE = {
   enabled: false,
   propagateTraceparent: false,
+  propagationTargets: [],
   sampleRate: 1
 } as const
+
+const DEFAULT_REQUEST_BODY = {
+  allowUrls: [],
+  captureHeaders: false,
+  contentTypes: [
+    "application/json",
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain"
+  ],
+  denyUrls: [],
+  enabled: false,
+  maxBytes: 2 * 1024
+} as const satisfies Required<RequestBodyOptions>
 
 const DEFAULT_COMPRESSION = {
   algorithm: "gzip",
@@ -105,7 +127,11 @@ export const DEFAULT_OPTIONS: Omit<
   capture: { ...DEFAULT_CAPTURE },
   compression: { ...DEFAULT_COMPRESSION },
   debug: false,
+  debugId: undefined,
+  allowUrls: [],
+  denyUrls: [],
   flushInterval: 5000,
+  ignoreErrors: [],
   ignoreUrls: [],
 	  localization: false,
 	  localizationKey: "__frontend_monitor_local__",
@@ -125,6 +151,7 @@ export const DEFAULT_OPTIONS: Omit<
 	  release: undefined,
 	  sessionReplay: { ...DEFAULT_SESSION_REPLAY },
   sanitize: { ...DEFAULT_SANITIZE },
+  requestBody: { ...DEFAULT_REQUEST_BODY },
   tags: {},
   trace: { ...DEFAULT_TRACE },
   transport: undefined,
@@ -162,6 +189,7 @@ export function normalizeOptions(
   const sessionReplay = normalizeSessionReplayOptions(options)
   const sanitize = normalizeSanitizeOptions(options)
   const trace = normalizeTraceOptions(options)
+  const requestBody = normalizeRequestBodyOptions(options)
   const compression = normalizeCompressionOptions(options)
 
 	  return {
@@ -174,12 +202,16 @@ export function normalizeOptions(
     capture,
     compression,
     debug: options.debug ?? DEFAULT_OPTIONS.debug,
+    debugId: options.debugId ?? DEFAULT_OPTIONS.debugId,
     dsn: options.dsn,
     flushInterval: Math.max(
       0,
       options.flushInterval ?? DEFAULT_OPTIONS.flushInterval
     ),
     ignoreUrls,
+    allowUrls: [...(options.allowUrls ?? DEFAULT_OPTIONS.allowUrls)],
+    denyUrls: [...(options.denyUrls ?? DEFAULT_OPTIONS.denyUrls)],
+    ignoreErrors: [...(options.ignoreErrors ?? DEFAULT_OPTIONS.ignoreErrors)],
     localization: options.localization ?? DEFAULT_OPTIONS.localization,
 	    localizationKey:
 	      options.localizationKey ?? DEFAULT_OPTIONS.localizationKey,
@@ -211,6 +243,7 @@ export function normalizeOptions(
 	    sampleRate,
 	    sessionReplay,
 	    sanitize,
+	    requestBody,
 	    scopeError: options.scopeError ?? DEFAULT_OPTIONS.scopeError,
 	    tags: { ...(options.tags ?? DEFAULT_OPTIONS.tags) },
 	    trace,
@@ -328,12 +361,29 @@ function normalizeSessionReplayOptions(
     privacy: {
       blockClass:
         raw.privacy?.blockClass ?? DEFAULT_SESSION_REPLAY.privacy.blockClass,
+      blockSelector:
+        raw.privacy?.blockSelector ?? DEFAULT_SESSION_REPLAY.privacy.blockSelector,
       ignoreClass:
         raw.privacy?.ignoreClass ?? DEFAULT_SESSION_REPLAY.privacy.ignoreClass,
+      ignoreSelector:
+        raw.privacy?.ignoreSelector ?? DEFAULT_SESSION_REPLAY.privacy.ignoreSelector,
       maskAllInputs:
         raw.privacy?.maskAllInputs ??
         raw.maskAllInputs ??
-        DEFAULT_SESSION_REPLAY.privacy.maskAllInputs
+        DEFAULT_SESSION_REPLAY.privacy.maskAllInputs,
+      maskInputOptions: {
+        ...(raw.privacy?.maskInputOptions ??
+          DEFAULT_SESSION_REPLAY.privacy.maskInputOptions)
+      },
+      maskTextClass:
+        raw.privacy?.maskTextClass ?? DEFAULT_SESSION_REPLAY.privacy.maskTextClass,
+      maskTextSelector:
+        raw.privacy?.maskTextSelector ??
+        DEFAULT_SESSION_REPLAY.privacy.maskTextSelector,
+      slimDOMOptions: {
+        ...(raw.privacy?.slimDOMOptions ??
+          DEFAULT_SESSION_REPLAY.privacy.slimDOMOptions)
+      }
     },
     sample: {
       errorSessionRate: clampSampleRate(
@@ -380,7 +430,34 @@ function normalizeTraceOptions(
     enabled: options.trace?.enabled ?? DEFAULT_TRACE.enabled,
     propagateTraceparent:
       options.trace?.propagateTraceparent ?? DEFAULT_TRACE.propagateTraceparent,
-    sampleRate: clampSampleRate(options.trace?.sampleRate ?? DEFAULT_TRACE.sampleRate)
+    propagationTargets: [
+      ...(options.trace?.propagationTargets ?? DEFAULT_TRACE.propagationTargets)
+    ],
+    sampleRate: clampSampleRate(options.trace?.sampleRate ?? DEFAULT_TRACE.sampleRate),
+    tracesSampler: options.trace?.tracesSampler
+  }
+}
+
+function normalizeRequestBodyOptions(
+  options: MonitorOptions
+): ResolvedMonitorOptions["requestBody"] {
+  return {
+    allowUrls: [
+      ...(options.requestBody?.allowUrls ?? DEFAULT_REQUEST_BODY.allowUrls)
+    ],
+    captureHeaders:
+      options.requestBody?.captureHeaders ?? DEFAULT_REQUEST_BODY.captureHeaders,
+    contentTypes: [
+      ...(options.requestBody?.contentTypes ?? DEFAULT_REQUEST_BODY.contentTypes)
+    ],
+    denyUrls: [
+      ...(options.requestBody?.denyUrls ?? DEFAULT_REQUEST_BODY.denyUrls)
+    ],
+    enabled: options.requestBody?.enabled ?? DEFAULT_REQUEST_BODY.enabled,
+    maxBytes: Math.max(
+      0,
+      options.requestBody?.maxBytes ?? DEFAULT_REQUEST_BODY.maxBytes
+    )
   }
 }
 

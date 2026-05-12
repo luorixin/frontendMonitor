@@ -4,6 +4,7 @@ import { createNavigationPerformanceEvent } from "./performance-navigation"
 import { initResourceObserver } from "./performance-resource"
 import {
   flushSoftNavigationVitals,
+  createWebVitalEvent,
   initWebVitalObservers,
   startSoftNavigationCapture
 } from "./performance-web-vitals"
@@ -13,11 +14,25 @@ export function initPerformanceCapture(): void {
 
   const collectNavigation = () => {
     const event = createNavigationPerformanceEvent()
-    if (event) {
-      enqueueEvent(event, true)
-      if (state.options?.debug) {
-        debugLog("capture navigation performance", event)
+	    if (event) {
+	      enqueueEvent(event, true)
+      if (event.metrics.firstContentfulPaint !== undefined) {
+        enqueueEvent(
+          createWebVitalEvent(
+            "FCP",
+            event.metrics.firstContentfulPaint,
+            event.navigationType
+          ),
+          true
+        )
       }
+      enqueueEvent(
+        createWebVitalEvent("TTFB", event.metrics.ttfb, event.navigationType),
+        true
+      )
+	      if (state.options?.debug) {
+	        debugLog("capture navigation performance", event)
+	      }
     }
   }
 

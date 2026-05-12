@@ -4,7 +4,7 @@ import type {
   TransportResult
 } from "../core/types"
 import { encodeJSONRequestBody } from "./compression"
-import { safeStringify } from "../utils"
+import { byteLength, safeStringify } from "../utils"
 
 const BEACON_LIMIT = 60 * 1024
 const IMAGE_LIMIT = 1800
@@ -16,7 +16,9 @@ export async function sendPayload(
 ): Promise<TransportResult> {
   const body = safeStringify(payload)
 
-  if (options.maxPayloadBytes !== undefined && body.length > options.maxPayloadBytes) {
+  const bodyBytes = byteLength(body)
+
+  if (options.maxPayloadBytes !== undefined && bodyBytes > options.maxPayloadBytes) {
     return {
       reason: "payload_too_large",
       success: false,
@@ -35,14 +37,14 @@ export async function sendPayload(
     }
   }
 
-  if (body.length <= IMAGE_LIMIT) {
+  if (bodyBytes <= IMAGE_LIMIT) {
     const imageResult = await trySendImage(dsn, body)
     if (imageResult.success) {
       return imageResult
     }
   }
 
-  if (!options.preferBeacon && body.length <= BEACON_LIMIT) {
+  if (!options.preferBeacon && bodyBytes <= BEACON_LIMIT) {
     const beaconResult = trySendBeacon(dsn, body)
     if (beaconResult.success) {
       return beaconResult

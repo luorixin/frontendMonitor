@@ -3,6 +3,7 @@ import type {
   Breadcrumb,
   BeforePushEventHandler,
   BeforeSendHandler,
+  DiagnosticsSnapshot,
   MonitorIntegration,
   MonitorEvent,
   NetworkStatus,
@@ -30,6 +31,7 @@ export type MonitorState = {
   consoleErrorOriginal: typeof console.error | null
   currentRoute: string
   deviceId: string
+  diagnostics: DiagnosticsSnapshot
   errorScope: Map<
     string,
     {
@@ -41,6 +43,7 @@ export type MonitorState = {
   flushPromise: Promise<void> | null
   flushTimer: ReturnType<typeof setTimeout> | null
   afterSendHooks: AfterSendHandler[]
+  activeSpanId: string | null
   beforePushEventHooks: BeforePushEventHandler[]
   beforeSendHooks: BeforeSendHandler[]
   breadcrumbs: Breadcrumb[]
@@ -82,6 +85,7 @@ export type MonitorState = {
 
 export const state: MonitorState = {
   afterSendHooks: [],
+  activeSpanId: null,
   beforePushEventHooks: [],
   beforeSendHooks: [],
   breadcrumbs: [],
@@ -90,6 +94,14 @@ export const state: MonitorState = {
   consoleErrorOriginal: null,
   currentRoute: "",
   deviceId: "",
+  diagnostics: {
+    droppedByPayloadSize: 0,
+    droppedByQueueOverflow: 0,
+    droppedBySampling: 0,
+    offlineQueued: 0,
+    retryExhausted: 0,
+    retrySucceeded: 0
+  },
   errorScope: new Map(),
   flushPromise: null,
   flushTimer: null,
@@ -156,12 +168,21 @@ export function clearTimer(timer: ReturnType<typeof setTimeout> | null): null {
 
 export function resetState(): void {
   state.afterSendHooks = []
+  state.activeSpanId = null
   state.beforePushEventHooks = []
   state.beforeSendHooks = []
   state.breadcrumbs = []
   state.contexts = {}
   state.currentRoute = ""
   state.deviceId = ""
+  state.diagnostics = {
+    droppedByPayloadSize: 0,
+    droppedByQueueOverflow: 0,
+    droppedBySampling: 0,
+    offlineQueued: 0,
+    retryExhausted: 0,
+    retrySucceeded: 0
+  }
   state.errorScope.clear()
   state.flushPromise = null
   state.flushTimer = clearTimer(state.flushTimer)

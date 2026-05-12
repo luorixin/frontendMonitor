@@ -1,5 +1,6 @@
 import { debugLog } from "../pipeline/queue"
-import { textPreview } from "../utils"
+import { state } from "../core/context"
+import { byteLength, matchesIgnoreRule, safeStringify, textPreview } from "../utils"
 
 export function createMemoizedRequestBodyReader<T>(
   reader: () => Promise<T>
@@ -13,12 +14,17 @@ export function createMemoizedRequestBodyReader<T>(
 
 export async function readRequestBodySafely(
   reader: (() => Promise<unknown | undefined>) | undefined,
-  requestUrl: string
+  requestUrl: string,
+  contentType?: string
 ): Promise<unknown | undefined> {
   if (!reader) return undefined
+  if (!shouldCaptureRequestBody(requestUrl, contentType)) return undefined
 
   try {
-    return await reader()
+    const body = await reader()
+    if (body === undefined) return undefined
+    if (!fitsRequestBodyLimit(body)) return undefined
+    return body
   } catch (error) {
     debugLog("capture request body failed", {
       error,
@@ -26,6 +32,32 @@ export async function readRequestBodySafely(
     })
     return undefined
   }
+}
+
+export function shouldCaptureRequestBody(
+  requestUrl: string,
+  contentType?: string
+): boolean {
+  const options = state.options?.requestBody
+  if (!options?.enabled) return false
+  if (matchesIgnoreRule(requestUrl, options.denyUrls)) return false
+  if (options.allowUrls.length > 0 && !matchesIgnoreRule(requestUrl, options.allowUrls)) {
+    return false
+  }
+
+  if (options.contentTypes.length === 0) return true
+  const normalizedContentType = contentType?.toLowerCase() ?? ""
+  if (!normalizedContentType) return false
+
+  return options.contentTypes.some(allowedType =>
+    normalizedContentType.includes(allowedType.toLowerCase())
+  )
+}
+
+function fitsRequestBodyLimit(body: unknown): boolean {
+  const maxBytes = state.options?.requestBody.maxBytes ?? 0
+  if (maxBytes <= 0) return false
+  return byteLength(safeStringify(body)) <= maxBytes
 }
 
 export async function normalizeCapturedRequestBody(

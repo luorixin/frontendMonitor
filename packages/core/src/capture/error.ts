@@ -1,7 +1,8 @@
 import { state } from "../core/context"
 import { debugLog, enqueueEvent } from "../pipeline/queue"
-import type { ErrorEventPayload, ResourceErrorEventPayload } from "../core/types"
-import { now, toSelector } from "../utils"
+import type { CauseInfo, ErrorEventPayload, ResourceErrorEventPayload } from "../core/types"
+import { matchesIgnoreRule, now, toSelector } from "../utils"
+import { parseStackFrames } from "./stack"
 
 const ERROR_SCOPE_WINDOW = 5000
 
@@ -21,6 +22,7 @@ export function initErrorCapture(): Array<() => void> {
     if (state.options?.capture.jsError) {
       enqueueScopedError(
         createErrorEvent("js_error", event.error ?? event.message, {
+          mechanism: "onerror",
           source: event.filename
         })
       )
@@ -31,6 +33,7 @@ export function initErrorCapture(): Array<() => void> {
     if (!state.options?.capture.promiseRejection) return
     enqueueScopedError(
       createErrorEvent("promise_rejection", event.reason, {
+        mechanism: "unhandledrejection",
         source: "unhandledrejection"
       })
     )
@@ -104,17 +107,34 @@ export function createErrorEvent(
   type: ErrorEventPayload["type"],
   value: unknown,
   extra?: {
+    mechanism?: NonNullable<ErrorEventPayload["mechanism"]>["type"]
     params?: Record<string, unknown>
     source?: string
   }
 ): ErrorEventPayload {
   const errorInfo = normalizeUnknownError(value)
+  const frames = parseStackFrames(errorInfo.stack)
+  const source = extra?.source ?? frames[0]?.filename ?? errorInfo.source
 
   return {
+    causeChain: buildCauseChain(value),
+    debugId: state.options?.debugId,
+    dist: state.options?.dist,
+    exception: {
+      stacktrace: frames.length > 0 ? { frames } : undefined,
+      type: errorInfo.type,
+      value: errorInfo.message
+    },
+    frames: frames.length > 0 ? frames : undefined,
+    mechanism: {
+      handled: extra?.mechanism ? extra.mechanism === "manual" : true,
+      type: extra?.mechanism ?? "manual"
+    },
     message: errorInfo.message,
     params: extra?.params,
+    release: state.options?.release,
     scopeCount: 1,
-    source: extra?.source ?? errorInfo.source,
+    source,
     stack: errorInfo.stack,
     timestamp: now(),
     type,
@@ -123,6 +143,7 @@ export function createErrorEvent(
 }
 
 export function enqueueScopedError(event: ErrorEventPayload, flush = false): void {
+  if (shouldDropError(event)) return
   if (!shouldEmitScopedError(event)) return
   enqueueEvent(event, flush)
 }
@@ -131,18 +152,21 @@ function normalizeUnknownError(value: unknown): {
   message: string
   source?: string
   stack?: string
+  type: string
 } {
   if (value instanceof Error) {
     return {
       message: value.message || value.name || "Unknown error",
       source: value.name,
-      stack: value.stack
+      stack: value.stack,
+      type: value.name || "Error"
     }
   }
 
   if (typeof value === "string") {
     return {
-      message: value
+      message: value,
+      type: "Error"
     }
   }
 
@@ -154,13 +178,77 @@ function normalizeUnknownError(value: unknown): {
           ? maybeError.message
           : "Unknown error",
       source: typeof maybeError.name === "string" ? maybeError.name : undefined,
-      stack: typeof maybeError.stack === "string" ? maybeError.stack : undefined
+      stack: typeof maybeError.stack === "string" ? maybeError.stack : undefined,
+      type: typeof maybeError.name === "string" ? maybeError.name : "Error"
     }
   }
 
   return {
-    message: String(value)
+    message: String(value),
+    type: "Error"
   }
+}
+
+function buildCauseChain(value: unknown): CauseInfo[] | undefined {
+  const causes: CauseInfo[] = []
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "errors" in value &&
+    Array.isArray((value as { errors?: unknown }).errors)
+  ) {
+    for (const item of (value as { errors: unknown[] }).errors) {
+      const normalized = normalizeUnknownError(item)
+      causes.push({
+        message: normalized.message,
+        stack: normalized.stack,
+        type: normalized.type
+      })
+    }
+  }
+
+  let current = readCause(value)
+  const visited = new Set<unknown>()
+
+  while (current !== undefined && current !== null && !visited.has(current)) {
+    visited.add(current)
+    const normalized = normalizeUnknownError(current)
+    causes.unshift({
+      message: normalized.message,
+      stack: normalized.stack,
+      type: normalized.type
+    })
+    current = readCause(current)
+  }
+
+  return causes.length > 0 ? causes : undefined
+}
+
+function readCause(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || !("cause" in value)) {
+    return undefined
+  }
+  return (value as { cause?: unknown }).cause
+}
+
+function shouldDropError(event: ErrorEventPayload): boolean {
+  const options = state.options
+  if (!options) return false
+
+  if (matchesIgnoreRule(event.message, options.ignoreErrors)) {
+    return true
+  }
+
+  const sourceTarget = event.source ?? event.url
+  if (matchesIgnoreRule(sourceTarget, options.denyUrls)) {
+    return true
+  }
+
+  if (options.allowUrls.length > 0 && !matchesIgnoreRule(sourceTarget, options.allowUrls)) {
+    return true
+  }
+
+  return false
 }
 
 function shouldEmitScopedError(event: ErrorEventPayload): boolean {

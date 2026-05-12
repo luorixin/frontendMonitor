@@ -29,8 +29,8 @@ export function persistOfflinePayload(payload: MonitorPayload): Promise<boolean>
     return Promise.resolve(false)
   }
 
-  return runOfflineStoreOperation(() =>
-    appendAsyncQueue(
+  return runOfflineStoreOperation(async () => {
+    const persisted = await appendAsyncQueue(
       { attempts: 0, payload },
       {
         key: state.options!.offlineQueueKey,
@@ -39,7 +39,11 @@ export function persistOfflinePayload(payload: MonitorPayload): Promise<boolean>
         validate: isOfflineEntry
       }
     )
-  )
+    if (persisted) {
+      state.diagnostics.offlineQueued += 1
+    }
+    return persisted
+  })
 }
 
 export function scheduleOfflineReplay(delay?: number): void {
@@ -77,7 +81,11 @@ export async function replayOfflinePayloads(): Promise<void> {
         if (attempts < state.options!.retryMaxAttempts) {
           remaining.push({ attempts, payload: entry.payload })
           shouldRetryLater = true
+        } else {
+          state.diagnostics.retryExhausted += 1
         }
+      } else {
+        state.diagnostics.retrySucceeded += 1
       }
     }
 

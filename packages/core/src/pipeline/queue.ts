@@ -6,6 +6,7 @@ import { persistLocalizedPayload } from "../storage/localization"
 import { persistOfflineEvents, persistOfflinePayload } from "../storage/offline"
 import { triggerReplayCapture } from "./replay"
 import { sendPayload } from "./transport"
+import { byteLength, safeStringify, uuid } from "../utils"
 import type { MonitorEvent } from "../core/types"
 
 export function debugLog(message: string, payload?: unknown): void {
@@ -24,12 +25,13 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
   triggerReplayCapture(event)
 
   if (!flush && shouldDropBySampling()) {
+    state.diagnostics.droppedBySampling += 1
     debugLog("drop event by sampling", event)
     return
   }
 
   if (state.networkStatus === "offline") {
-    void persistOfflineEvents([event])
+    void persistOfflineEvents([ensureEventId(event)])
     debugLog("drop event: offline")
     return
   }
@@ -45,8 +47,9 @@ export function enqueueEvent(event: MonitorEvent, flush = false): void {
   for (const ev of events) {
     if (state.queue.length >= state.options.maxQueueLength) {
       state.queue.shift()
+      state.diagnostics.droppedByQueueOverflow += 1
     }
-    state.queue.push(ev)
+    state.queue.push(ensureEventId(ev))
   }
 
   if (state.queue.length >= state.options.batchSize || flush) {
@@ -108,7 +111,7 @@ async function flushQueueInternal(options?: {
     return
   }
 
-  const result = await sendPayload(state.options.dsn, processedPayload, {
+  await sendProcessedPayload(processedPayload, {
     compressionAlgorithm: state.options.compression.algorithm,
     compression: state.options.compression.eventPayloads,
     maxPayloadBytes: state.options.maxPayloadBytes,
@@ -116,12 +119,43 @@ async function flushQueueInternal(options?: {
     timeout: state.options.timeout,
     transport: state.options.transport
   })
+}
 
-  runAfterSendHooks(result, processedPayload)
+async function sendProcessedPayload(
+  payload: ReturnType<typeof buildPayload>,
+  options: Parameters<typeof sendPayload>[2]
+): Promise<void> {
+  if (!state.options) return
+
+  const maxPayloadBytes = state.options.maxPayloadBytes
+  if (byteLength(safeStringify(payload)) > maxPayloadBytes) {
+    if (payload.events.length <= 1) {
+      state.diagnostics.droppedByPayloadSize += payload.events.length
+      debugLog("drop payload: payload too large")
+      return
+    }
+
+    const midpoint = Math.ceil(payload.events.length / 2)
+    await sendProcessedPayload(
+      { base: payload.base, events: payload.events.slice(0, midpoint) },
+      options
+    )
+    await sendProcessedPayload(
+      { base: payload.base, events: payload.events.slice(midpoint) },
+      options
+    )
+    return
+  }
+
+  const result = await sendPayload(state.options.dsn, payload, options)
+
+  runAfterSendHooks(result, payload)
 
   if (!result.success) {
     if (result.reason !== "payload_too_large") {
-      await persistOfflinePayload(processedPayload)
+      await persistOfflinePayload(payload)
+    } else {
+      state.diagnostics.droppedByPayloadSize += payload.events.length
     }
     debugLog("send failed", result)
     return
@@ -138,4 +172,11 @@ export function clearQueue(): void {
 function shouldDropBySampling(): boolean {
   const sampleRate = state.options?.sampleRate ?? DEFAULT_OPTIONS.sampleRate
   return sampleRate <= 0 || Math.random() > sampleRate
+}
+
+function ensureEventId(event: MonitorEvent): MonitorEvent {
+  event.eventId ??= uuid()
+  event.traceId ??= state.traceId ?? undefined
+  event.spanId ??= state.activeSpanId ?? state.spanId ?? undefined
+  return event
 }

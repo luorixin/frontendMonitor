@@ -9,10 +9,20 @@ import {
 import { sendLocal as sendLocalizedPayloads } from "../storage/localization"
 import { enqueueEvent, flushQueue } from "../pipeline/queue"
 import {
+  addReplayEvent as addReplayTimelineEvent,
   flushReplayQueue,
   getReplayId as getActiveReplayId,
+  pauseSessionReplay,
+  resumeSessionReplay,
+  startSessionReplay,
   stopSessionReplay
 } from "../pipeline/replay"
+import {
+  getTraceContext as getActiveTraceContext,
+  startSpan as startTraceSpan,
+  startTransaction as startTraceTransaction,
+  withSpan as runWithTraceSpan
+} from "../core/trace"
 import type {
   AfterSendHandler,
   Breadcrumb,
@@ -20,7 +30,9 @@ import type {
   BeforeSendHandler,
   MonitorIntegration,
   MonitorOptions,
-  ResolvedMonitorOptions
+  ResolvedMonitorOptions,
+  TraceSpan,
+  TraceSpanOptions
 } from "../core/types"
 import { createErrorEvent, enqueueScopedError } from "../capture/error"
 import { now } from "../utils"
@@ -119,8 +131,30 @@ export function getReplayId(): string | null {
   return getActiveReplayId()
 }
 
-export function stopReplay(): void {
+export async function stopReplay(options?: { flush?: boolean }): Promise<void> {
+  if (options?.flush) {
+    await flushReplayQueue()
+  }
   stopSessionReplay()
+}
+
+export function startReplay(): void {
+  startSessionReplay()
+}
+
+export function pauseReplay(): void {
+  pauseSessionReplay()
+}
+
+export function resumeReplay(): void {
+  resumeSessionReplay()
+}
+
+export function addReplayEvent(
+  tag: string,
+  payload?: Record<string, unknown>
+): void {
+  addReplayTimelineEvent(tag, payload)
 }
 
 export function sendLocal(): Promise<void> {
@@ -142,6 +176,32 @@ export function getOptions(): Readonly<ResolvedMonitorOptions> | null {
 	    ignoreUrls: [...state.options.ignoreUrls],
       integrations: [...state.options.integrations]
 	  }
+}
+
+export function getDiagnostics() {
+  return { ...state.diagnostics }
+}
+
+export function getTraceContext(): { traceId: string; spanId: string | null } | null {
+  return getActiveTraceContext()
+}
+
+export function startTransaction(
+  name: string,
+  options?: TraceSpanOptions
+): TraceSpan {
+  return startTraceTransaction(name, options)
+}
+
+export function startSpan(name: string, options?: TraceSpanOptions): TraceSpan {
+  return startTraceSpan(name, options)
+}
+
+export function withSpan<T>(
+  span: TraceSpan,
+  callback: () => T | Promise<T>
+): Promise<T> {
+  return runWithTraceSpan(span, callback)
 }
 
 export function seedInitHooks(options: MonitorOptions): void {
