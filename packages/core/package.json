@@ -1,6 +1,6 @@
 {
   "name": "frontend-monitor-core",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": false,
   "description": "Core browser monitoring SDK with modular integrations for frontend-monitor.",
   "type": "module",
