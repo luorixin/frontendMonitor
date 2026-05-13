@@ -16,6 +16,8 @@
 - [deploy/server/bootstrap-ubuntu.sh](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/deploy/server/bootstrap-ubuntu.sh)
 - [docs/deployment/centos-server-quickstart.md](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/docs/deployment/centos-server-quickstart.md)
 - [deploy/server/bootstrap-centos.sh](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/deploy/server/bootstrap-centos.sh)
+- [docs/deployment/alibaba-cloud-linux-8-quickstart.md](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/docs/deployment/alibaba-cloud-linux-8-quickstart.md)
+- [deploy/server/bootstrap-alibaba-cloud-linux-8.sh](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/deploy/server/bootstrap-alibaba-cloud-linux-8.sh)
 - [docs/deployment/go-live-checklist.md](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/docs/deployment/go-live-checklist.md)
 - [deploy/server/verify-deployment.sh](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/deploy/server/verify-deployment.sh)
 - [docs/deployment/zero-to-live.md](/Users/fridafeng/Documents/sunxin/work/frontend-monitor/docs/deployment/zero-to-live.md)
