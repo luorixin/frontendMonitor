@@ -4,7 +4,7 @@ WORKDIR /workspace
 
 RUN corepack enable
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/report/package.json apps/report/package.json
 
 RUN pnpm install --frozen-lockfile --filter frontend-monitor-report...
