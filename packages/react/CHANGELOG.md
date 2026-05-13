@@ -1,5 +1,16 @@
 # frontend-monitor-react
 
+## 2.3.0
+
+### Minor Changes
+
+- 9ddba8e: 结构化错误，web vital 事件扩展，replay 隐私扩展
+
+### Patch Changes
+
+- Updated dependencies [9ddba8e]
+  - frontend-monitor-core@2.3.0
+
 ## 2.2.0
 
 ### Minor Changes
