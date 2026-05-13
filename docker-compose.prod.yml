@@ -1,0 +1,98 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: monitor-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-monitor}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: ${TZ:-Asia/Shanghai}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: monitor-redis
+    restart: unless-stopped
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+        exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
+      else
+        exec redis-server --appendonly yes;
+      fi'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: frontend-monitor-backend:latest
+    container_name: monitor-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-monitor}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-monitor-backend}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-30}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-720}
+      SPRING_FLYWAY_ENABLED: ${SPRING_FLYWAY_ENABLED:-true}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      SPRING_FLYWAY_BASELINE_VERSION: ${SPRING_FLYWAY_BASELINE_VERSION:-2}
+      MONITOR_COLLECT_MAX_EVENTS: ${MONITOR_COLLECT_MAX_EVENTS:-100}
+      MONITOR_COLLECT_MAX_PAYLOAD_BYTES: ${MONITOR_COLLECT_MAX_PAYLOAD_BYTES:-262144}
+      MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES: ${MONITOR_COLLECT_MAX_IMAGE_DATA_BYTES:-4096}
+      MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE: ${MONITOR_COLLECT_RATE_LIMIT_PER_MINUTE:-6000}
+      MONITOR_SOURCE_MAP_MAX_FILE_BYTES: ${MONITOR_SOURCE_MAP_MAX_FILE_BYTES:-2097152}
+      MONITOR_REPLAY_MAX_PAYLOAD_BYTES: ${MONITOR_REPLAY_MAX_PAYLOAD_BYTES:-262144}
+      MONITOR_RETENTION_EVENT_DAYS: ${MONITOR_RETENTION_EVENT_DAYS:-30}
+      MONITOR_RETENTION_AGGREGATE_DAYS: ${MONITOR_RETENTION_AGGREGATE_DAYS:-180}
+      JAVA_OPTS: ${JAVA_OPTS:-}
+    ports:
+      - "${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_PORT:-8080}:8080"
+
+  report:
+    build:
+      context: .
+      dockerfile: apps/report/Dockerfile
+    image: frontend-monitor-report:latest
+    container_name: monitor-report
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_UPSTREAM: http://backend:8080
+    ports:
+      - "${REPORT_BIND_HOST:-127.0.0.1}:${REPORT_PORT:-4176}:80"
+
+volumes:
+  mysql-data:
+  redis-data:
